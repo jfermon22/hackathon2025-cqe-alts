@@ -2260,24 +2260,397 @@ Return top 8 products ranked by suitability as JSON array.
         testLLMIntegration();
     };
     
-    // Test LLM integration function
-    async function testLLMIntegration() {
-        console.log('Testing Strands SDK integration...');
+    // Intelligent Response Generation System
+    const INTELLIGENT_RESPONSES = {
+        // Response generation templates with context
+        RESPONSE_CONTEXTS: {
+            willingness_explanation: {
+                prompt: `Generate a helpful explanation about product alternates for a customer considering {product_name}. 
+                
+                Context:
+                - Product: {product_name}
+                - Category: {product_category}
+                - Customer seems hesitant about alternates
+                
+                Create a personalized, conversational response that:
+                1. Acknowledges their specific product choice
+                2. Explains benefits relevant to this product category
+                3. Addresses common concerns about alternates
+                4. Keeps a helpful, non-pushy tone
+                5. Is 2-3 sentences maximum
+                
+                Product: {product_name}
+                Category: {product_category}`,
+                
+                fallback: "Alternates can provide better value, improved features, or better availability than your original choice. They're especially helpful when suppliers have insights about newer or equivalent products that might better meet your needs."
+            },
+            
+            requirements_clarification: {
+                prompt: `Generate a follow-up question to clarify customer requirements for {product_name}.
+                
+                Context:
+                - Product: {product_name}
+                - Category: {product_category}
+                - Previous answer: {previous_answer}
+                - Current question focus: {question_focus}
+                
+                Create a natural follow-up question that:
+                1. References their previous answer specifically
+                2. Asks for more detail about {question_focus}
+                3. Uses product-appropriate terminology
+                4. Feels conversational, not interrogative
+                5. Is one clear question
+                
+                Previous answer: {previous_answer}
+                Focus: {question_focus}`,
+                
+                fallback: "Could you tell me more about what's most important to you in this product?"
+            },
+            
+            requirements_summary: {
+                prompt: `Create a conversational summary of customer requirements for {product_name}.
+                
+                Context:
+                - Product: {product_name}
+                - Category: {product_category}
+                - Requirements: {requirements_json}
+                
+                Create a natural summary that:
+                1. Sounds like you understand their needs
+                2. Highlights the most important requirements
+                3. Uses their own words where possible
+                4. Shows you're ready to help find alternates
+                5. Is encouraging and confident
+                
+                Requirements: {requirements_json}`,
+                
+                fallback: "Based on your requirements, I understand what you're looking for and I'm confident I can find suitable alternates."
+            },
+            
+            search_progress: {
+                prompt: `Generate a search progress message for finding alternates to {product_name}.
+                
+                Context:
+                - Product: {product_name}
+                - Category: {product_category}
+                - Search terms: {search_terms}
+                - Requirements focus: {requirements_focus}
+                
+                Create an engaging progress message that:
+                1. Shows you're actively searching
+                2. Mentions the search approach
+                3. Builds confidence in finding good results
+                4. Is specific to this product category
+                5. Takes 1-2 sentences
+                
+                Search terms: {search_terms}
+                Focus: {requirements_focus}`,
+                
+                fallback: "Searching for suitable alternates based on your requirements..."
+            },
+            
+            no_results_encouragement: {
+                prompt: `Generate an encouraging message when no perfect alternates are found for {product_name}.
+                
+                Context:
+                - Product: {product_name}
+                - Category: {product_category}
+                - Requirements: {requirements_summary}
+                - Search attempted: {search_attempted}
+                
+                Create a helpful response that:
+                1. Acknowledges the search challenge
+                2. Suggests alternative approaches
+                3. Keeps the customer engaged
+                4. Offers manual ASIN input as solution
+                5. Maintains optimistic tone
+                
+                Requirements: {requirements_summary}`,
+                
+                fallback: "I didn't find perfect matches in my initial search, but you can add specific ASINs if you have alternates in mind, or we can try a broader search approach."
+            }
+        },
+        
+        // Generate intelligent response using LLM
+        generateResponse: async function(responseType, context = {}) {
+            const template = this.RESPONSE_CONTEXTS[responseType];
+            if (!template) {
+                log(`No template found for response type: ${responseType}`);
+                return template?.fallback || "I'm here to help you find the best alternates.";
+            }
+            
+            try {
+                // Replace placeholders in prompt
+                let prompt = template.prompt;
+                for (const [key, value] of Object.entries(context)) {
+                    const placeholder = `{${key}}`;
+                    prompt = prompt.replace(new RegExp(placeholder, 'g'), value || 'not specified');
+                }
+                
+                const response = await STRANDS_INTEGRATION.makeRequest(prompt, {
+                    model: 'claude-3-sonnet',
+                    temperature: 0.7, // Higher creativity for natural responses
+                    maxTokens: 200 // Limit response length
+                });
+                
+                if (response.success) {
+                    const generatedResponse = response.response.trim();
+                    log(`Generated intelligent response for ${responseType}:`, generatedResponse);
+                    
+                    // Track successful LLM response generation
+                    CONVERSATION_ANALYTICS.trackUserAction('llm_response_generated', {
+                        responseType: responseType,
+                        success: true
+                    });
+                    
+                    return generatedResponse;
+                } else {
+                    log(`LLM response generation failed for ${responseType}:`, response.error);
+                    
+                    // Track failed LLM response generation
+                    CONVERSATION_ANALYTICS.trackUserAction('llm_response_failed', {
+                        responseType: responseType,
+                        error: response.error
+                    });
+                    
+                    return template.fallback;
+                }
+                
+            } catch (error) {
+                log(`Error generating intelligent response for ${responseType}:`, error);
+                
+                CONVERSATION_ANALYTICS.trackUserAction('llm_response_error', {
+                    responseType: responseType,
+                    error: error.message
+                });
+                
+                return template.fallback;
+            }
+        },
+        
+        // Generate contextual follow-up questions
+        generateFollowUpQuestion: async function(previousAnswer, questionFocus, productData) {
+            const context = {
+                product_name: productData?.name || 'this product',
+                product_category: detectProductCategory(productData),
+                previous_answer: previousAnswer,
+                question_focus: questionFocus
+            };
+            
+            return await this.generateResponse('requirements_clarification', context);
+        },
+        
+        // Generate personalized requirements summary
+        generateRequirementsSummary: async function(requirements, productData) {
+            const context = {
+                product_name: productData?.name || 'this product',
+                product_category: detectProductCategory(productData),
+                requirements_json: JSON.stringify(requirements, null, 2)
+            };
+            
+            return await this.generateResponse('requirements_summary', context);
+        },
+        
+        // Generate search progress messages
+        generateSearchProgress: async function(searchTerms, requirements, productData) {
+            const context = {
+                product_name: productData?.name || 'this product',
+                product_category: detectProductCategory(productData),
+                search_terms: Array.isArray(searchTerms) ? searchTerms.join(', ') : searchTerms,
+                requirements_focus: this.extractRequirementsFocus(requirements)
+            };
+            
+            return await this.generateResponse('search_progress', context);
+        },
+        
+        // Extract key focus from requirements for messaging
+        extractRequirementsFocus: function(requirements) {
+            const focuses = [];
+            
+            if (requirements.priceRange) {
+                focuses.push('budget-conscious options');
+            }
+            
+            if (requirements.mustHaveFeatures && requirements.mustHaveFeatures.length > 0) {
+                focuses.push(`${requirements.mustHaveFeatures.join(' and ')} features`);
+            }
+            
+            if (requirements.brandPreferences && requirements.brandPreferences.length > 0) {
+                focuses.push(`${requirements.brandPreferences.join(' or ')} brands`);
+            }
+            
+            if (requirements.useCase) {
+                focuses.push(`${requirements.useCase} applications`);
+            }
+            
+            return focuses.length > 0 ? focuses.join(', ') : 'your specific needs';
+        }
+    };
+    
+    // Enhanced willingness response with intelligent generation
+    async function handleEnhancedWillingnessResponse(response) {
+        const normalizedResponse = response.toLowerCase().trim();
+        
+        if (normalizedResponse.includes('yes') || normalizedResponse.includes('sure') || normalizedResponse.includes('okay')) {
+            enhancedConversationState.step = 'DETERMINE_APPROACH';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.DETERMINE_APPROACH.message);
+        } else if (normalizedResponse.includes('no') || normalizedResponse.includes('not interested')) {
+            enhancedConversationState.step = 'OFFER_MANUAL_ONLY';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.OFFER_MANUAL_ONLY.message);
+            showManualASINSection();
+        } else if (normalizedResponse.includes('maybe') || normalizedResponse.includes('not sure') || normalizedResponse.includes('tell me more')) {
+            enhancedConversationState.step = 'EXPLAIN_BENEFITS';
+            
+            // Generate intelligent explanation using LLM
+            const context = {
+                product_name: enhancedConversationState.productData?.name || 'this product',
+                product_category: detectProductCategory(enhancedConversationState.productData)
+            };
+            
+            const intelligentResponse = await INTELLIGENT_RESPONSES.generateResponse('willingness_explanation', context);
+            addChatMessage(intelligentResponse);
+        } else {
+            // Generate contextual clarification
+            const context = {
+                product_name: enhancedConversationState.productData?.name || 'this product',
+                product_category: detectProductCategory(enhancedConversationState.productData)
+            };
+            
+            const clarification = await INTELLIGENT_RESPONSES.generateResponse('willingness_explanation', context);
+            addChatMessage(`${clarification} Would you like me to help find alternates?`);
+        }
+    }
+    
+    // Enhanced guided requirements with intelligent follow-ups
+    async function handleGuidedRequirements(response) {
+        const questions = ENHANCED_CONVERSATION_STEPS.REQUIREMENTS_GATHERING.subQuestions;
+        const currentQ = enhancedConversationState.currentQuestion;
+        
+        // Store the response based on question type
+        storeRequirementResponse(currentQ, response);
+        
+        // Move to next question or finish
+        enhancedConversationState.currentQuestion++;
+        
+        if (enhancedConversationState.currentQuestion < questions.length) {
+            const nextQ = enhancedConversationState.currentQuestion;
+            
+            // Generate intelligent follow-up question based on previous answer
+            const questionFocus = getQuestionFocus(nextQ);
+            const followUpQuestion = await INTELLIGENT_RESPONSES.generateFollowUpQuestion(
+                response, 
+                questionFocus, 
+                enhancedConversationState.productData
+            );
+            
+            addChatMessage(`**Question ${nextQ + 1} of ${questions.length}:** ${followUpQuestion}`);
+        } else {
+            // All questions answered, process requirements with intelligent summary
+            enhancedConversationState.step = 'PROCESS_REQUIREMENTS';
+            
+            // Generate intelligent requirements summary
+            const intelligentSummary = await INTELLIGENT_RESPONSES.generateRequirementsSummary(
+                enhancedConversationState.requirements,
+                enhancedConversationState.productData
+            );
+            
+            addChatMessage(intelligentSummary);
+            
+            setTimeout(() => {
+                processEnhancedRequirements();
+            }, 2000);
+        }
+    }
+    
+    // Get question focus for intelligent follow-ups
+    function getQuestionFocus(questionIndex) {
+        const focuses = [
+            'use case and applications',
+            'essential features and functionality', 
+            'budget and pricing preferences',
+            'brand preferences and exclusions',
+            'technical specifications and requirements'
+        ];
+        
+        return focuses[questionIndex] || 'specific requirements';
+    }
+    
+    // Enhanced requirements processing with intelligent messaging
+    async function processEnhancedRequirements() {
+        log('Processing enhanced requirements with intelligent LLM responses:', enhancedConversationState.requirements);
         
         try {
-            const testPrompt = "Test prompt for requirements extraction: I need a durable, waterproof device under $50";
-            const result = await processRequirementsWithLLM(testPrompt);
+            // Use LLM to process requirements if available
+            const llmResult = await processRequirementsWithLLM(enhancedConversationState.requirements);
             
-            console.log('LLM Test Result:', result);
-            
-            if (result.success) {
-                console.log('✅ LLM integration working correctly');
+            if (llmResult.success) {
+                // Merge LLM results with existing requirements
+                enhancedConversationState.requirements = {
+                    ...enhancedConversationState.requirements,
+                    ...llmResult.requirements,
+                    llmProcessed: true,
+                    processedAt: new Date().toISOString()
+                };
+                
+                // Generate search terms with LLM
+                const searchTermsResult = await generateSearchTermsWithLLM(enhancedConversationState.requirements);
+                
+                if (searchTermsResult.success) {
+                    enhancedConversationState.searchTerms = searchTermsResult.searchTerms;
+                    
+                    // Generate intelligent search progress message
+                    const searchProgressMessage = await INTELLIGENT_RESPONSES.generateSearchProgress(
+                        searchTermsResult.searchTerms,
+                        enhancedConversationState.requirements,
+                        enhancedConversationState.productData
+                    );
+                    
+                    addChatMessage(searchProgressMessage);
+                } else {
+                    addChatMessage("I'm analyzing your requirements to find the best alternates...");
+                }
+                
+            } else if (llmResult.fallback) {
+                // Fall back to original processing with intelligent message
+                const fallbackMessage = await INTELLIGENT_RESPONSES.generateResponse('search_progress', {
+                    product_name: enhancedConversationState.productData?.name || 'this product',
+                    product_category: detectProductCategory(enhancedConversationState.productData),
+                    search_terms: 'standard search methods',
+                    requirements_focus: 'your specified requirements'
+                });
+                
+                addChatMessage(fallbackMessage);
             } else {
-                console.log('⚠️ LLM integration failed:', result.error);
+                addChatMessage(`Processing your requirements... (${llmResult.error})`);
             }
+            
         } catch (error) {
-            console.log('❌ LLM integration error:', error);
+            log('Error in intelligent requirements processing:', error);
+            addChatMessage("I'm analyzing your requirements to find suitable alternates...");
         }
+        
+        // Continue with existing flow
+        setTimeout(() => {
+            enhancedConversationState.step = 'PRESENT_ALTERNATES';
+            
+            // Generate intelligent "no results" message since search isn't implemented yet
+            const noResultsMessage = INTELLIGENT_RESPONSES.generateResponse('no_results_encouragement', {
+                product_name: enhancedConversationState.productData?.name || 'this product',
+                product_category: detectProductCategory(enhancedConversationState.productData),
+                requirements_summary: generateContextAwareRequirementsSummary(),
+                search_attempted: 'comprehensive product database search'
+            });
+            
+            noResultsMessage.then(message => {
+                addChatMessage(message);
+                
+                if (enhancedConversationState.approach === 'both' || enhancedConversationState.approach === 'guided') {
+                    showManualASINSection();
+                    showAlternatesSelection();
+                }
+            });
+            
+        }, 3000);
     }
         log('Processing enhanced requirements with LLM:', enhancedConversationState.requirements);
         
@@ -3843,5 +4216,35 @@ Return top 8 products ranked by suitability as JSON array.
     
     // Start initialization
     initialize();
+    
+    // Test LLM integration function
+    async function testLLMIntegration() {
+        console.log('Testing Strands SDK integration...');
+        
+        try {
+            const testPrompt = "Test prompt for requirements extraction: I need a durable, waterproof device under $50";
+            const result = await processRequirementsWithLLM(testPrompt);
+            
+            console.log('LLM Test Result:', result);
+            
+            if (result.success) {
+                console.log('✅ LLM integration working correctly');
+            } else {
+                console.log('⚠️ LLM integration failed:', result.error);
+            }
+            
+            // Test intelligent response generation
+            console.log('Testing intelligent response generation...');
+            const responseTest = await INTELLIGENT_RESPONSES.generateResponse('willingness_explanation', {
+                product_name: 'Test Product',
+                product_category: 'electronics'
+            });
+            
+            console.log('Intelligent Response Test:', responseTest);
+            
+        } catch (error) {
+            console.log('❌ LLM integration error:', error);
+        }
+    }
     
 })();
