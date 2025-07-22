@@ -3099,8 +3099,8 @@ Return top 8 products ranked by suitability as JSON array.
         log(`Chat message added (${sender}):`, message);
     }
     
-    // Enhanced conversation processing with context awareness
-    function processEnhancedUserInput(userInput) {
+    // Enhanced conversation processing with dynamic adaptation
+    async function processEnhancedUserInput(userInput) {
         const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
         
         if (!currentStep) {
@@ -3108,13 +3108,39 @@ Return top 8 products ranked by suitability as JSON array.
             return;
         }
         
+        // Analyze user behavior for adaptation
+        const behaviorAnalysis = CONVERSATION_ADAPTATION.analyzeUserBehavior(
+            userInput, 
+            enhancedConversationState.conversationHistory
+        );
+        
+        // Determine if conversation adaptation is needed
+        const adaptations = CONVERSATION_ADAPTATION.determineAdaptations(behaviorAnalysis);
+        
+        // Track step progression
+        const previousStep = enhancedConversationState.step;
+        
         // Add user message to chat
         addChatMessage(userInput, true);
+        
+        // Apply adaptations if needed before processing
+        if (adaptations.length > 0) {
+            const adaptedResponse = await CONVERSATION_ADAPTATION.applyAdaptations(adaptations, {
+                originalMessage: userInput,
+                productName: enhancedConversationState.productData?.name,
+                currentStep: enhancedConversationState.step
+            });
+            
+            if (adaptedResponse) {
+                addChatMessage(adaptedResponse, false);
+                // Continue with normal processing after adaptation
+            }
+        }
         
         // Process based on step type and context
         switch (enhancedConversationState.step) {
             case 'WILLINGNESS_CHECK':
-                handleEnhancedWillingnessResponse(userInput);
+                await handleEnhancedWillingnessResponse(userInput);
                 break;
                 
             case 'EXPLAIN_BENEFITS':
@@ -3126,7 +3152,7 @@ Return top 8 products ranked by suitability as JSON array.
                 break;
                 
             case 'REQUIREMENTS_GATHERING':
-                handleGuidedRequirements(userInput);
+                await handleGuidedRequirements(userInput);
                 break;
                 
             case 'REFINE_SELECTION':
@@ -3146,6 +3172,19 @@ Return top 8 products ranked by suitability as JSON array.
                 advanceEnhancedConversation();
                 break;
         }
+        
+        // Track step progression if step changed
+        if (previousStep !== enhancedConversationState.step) {
+            CONVERSATION_ANALYTICS.trackStepProgression(previousStep, enhancedConversationState.step, userInput);
+        }
+        
+        // Store behavior analysis in conversation state for future reference
+        enhancedConversationState.userBehaviorPattern = {
+            ...enhancedConversationState.userBehaviorPattern,
+            lastAnalysis: behaviorAnalysis,
+            adaptationsApplied: adaptations,
+            timestamp: new Date().toISOString()
+        };
     }
     
     // Process user input based on current conversation step (updated for enhanced system)
