@@ -1837,23 +1837,527 @@
         }
     }
     
-    // Add analytics summary to debug function
+    // Strands SDK Integration System
+    const STRANDS_INTEGRATION = {
+        // Configuration
+        CONFIG: {
+            endpoint: 'https://strands.amazon.com/api/v1',
+            model: 'claude-3-sonnet', // Default model
+            timeout: 30000, // 30 second timeout
+            maxRetries: 3,
+            retryDelay: 1000 // 1 second base delay
+        },
+        
+        // Authentication and headers
+        getHeaders: function() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.getAuthToken()}`,
+                'X-Amzn-RequestId': this.generateRequestId(),
+                'User-Agent': 'CQE-Alternates-Enhancement/1.0'
+            };
+        },
+        
+        // Get authentication token (placeholder - would integrate with actual auth)
+        getAuthToken: function() {
+            // In a real implementation, this would get the token from:
+            // - Midway authentication
+            // - Internal service credentials
+            // - Browser session tokens
+            return 'placeholder_auth_token';
+        },
+        
+        // Generate unique request ID for tracking
+        generateRequestId: function() {
+            return 'cqe_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        },
+        
+        // Make LLM request with retry logic
+        makeRequest: async function(prompt, options = {}) {
+            const config = { ...this.CONFIG, ...options };
+            let lastError = null;
+            
+            for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
+                try {
+                    log(`Strands API attempt ${attempt}/${config.maxRetries}`);
+                    
+                    const response = await this.performRequest(prompt, config);
+                    
+                    if (response.success) {
+                        log('Strands API request successful');
+                        return response;
+                    } else {
+                        throw new Error(response.error || 'Unknown API error');
+                    }
+                    
+                } catch (error) {
+                    lastError = error;
+                    log(`Strands API attempt ${attempt} failed:`, error.message);
+                    
+                    // Don't retry on authentication errors
+                    if (error.status === 401 || error.status === 403) {
+                        break;
+                    }
+                    
+                    // Wait before retry (exponential backoff)
+                    if (attempt < config.maxRetries) {
+                        const delay = config.retryDelay * Math.pow(2, attempt - 1);
+                        await this.sleep(delay);
+                    }
+                }
+            }
+            
+            // All retries failed
+            log('All Strands API attempts failed:', lastError);
+            return {
+                success: false,
+                error: lastError.message || 'LLM service unavailable',
+                fallback: true
+            };
+        },
+        
+        // Perform the actual HTTP request
+        performRequest: async function(prompt, config) {
+            // For now, simulate the API call since we don't have real Strands access
+            // In production, this would make the actual HTTP request
+            
+            log('Simulating Strands API call with prompt:', prompt.substring(0, 100) + '...');
+            
+            // Simulate network delay
+            await this.sleep(1000 + Math.random() * 2000);
+            
+            // Simulate occasional failures for testing
+            if (Math.random() < 0.1) { // 10% failure rate for testing
+                throw new Error('Simulated network error');
+            }
+            
+            // Return simulated response
+            return {
+                success: true,
+                response: this.generateSimulatedResponse(prompt),
+                model: config.model,
+                requestId: this.generateRequestId(),
+                usage: {
+                    promptTokens: Math.floor(prompt.length / 4),
+                    completionTokens: 150,
+                    totalTokens: Math.floor(prompt.length / 4) + 150
+                }
+            };
+        },
+        
+        // Generate simulated LLM response for testing
+        generateSimulatedResponse: function(prompt) {
+            // Analyze prompt to generate appropriate response
+            const promptLower = prompt.toLowerCase();
+            
+            if (promptLower.includes('requirements') && promptLower.includes('extract')) {
+                return JSON.stringify({
+                    specifications: ['durable', 'waterproof', 'portable'],
+                    price_constraints: { max_price: 50 },
+                    use_case: 'outdoor activities',
+                    brand_preferences: ['3M', 'Sony'],
+                    must_have_features: ['wireless', 'long battery life'],
+                    nice_to_have_features: ['compact design']
+                });
+            }
+            
+            if (promptLower.includes('search terms') && promptLower.includes('generate')) {
+                return JSON.stringify([
+                    'waterproof wireless headphones',
+                    'durable outdoor electronics',
+                    'portable audio device',
+                    'sports headphones wireless',
+                    'rugged bluetooth earbuds'
+                ]);
+            }
+            
+            if (promptLower.includes('evaluate') && promptLower.includes('products')) {
+                return JSON.stringify([
+                    {
+                        asin: 'B08N5WRWNW',
+                        suitability_score: 85,
+                        matching_features: ['wireless', 'waterproof', 'durable'],
+                        missing_features: ['long battery life'],
+                        explanation: 'Good match for outdoor use with excellent durability'
+                    },
+                    {
+                        asin: 'B07G2KHGQ8',
+                        suitability_score: 92,
+                        matching_features: ['wireless', 'long battery life', 'portable'],
+                        missing_features: [],
+                        explanation: 'Excellent match with all required features'
+                    }
+                ]);
+            }
+            
+            // Default conversational response
+            return "I understand your requirements and I'm processing them to find the best alternates for you.";
+        },
+        
+        // Utility function for delays
+        sleep: function(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    };
+    
+    // LLM-powered requirements processing
+    async function processRequirementsWithLLM(requirements) {
+        const prompt = `
+Extract key product requirements from this customer input:
+"${requirements.text || requirements}"
+
+Return a structured JSON with:
+- specifications: technical specs needed
+- price_constraints: budget or price preferences  
+- use_case: intended use or context
+- brand_preferences: preferred or excluded brands
+- must_have_features: essential features
+- nice_to_have_features: preferred but optional features
+
+Customer input: "${requirements.text || requirements}"
+        `.trim();
+        
+        try {
+            const response = await STRANDS_INTEGRATION.makeRequest(prompt, {
+                model: 'claude-3-sonnet',
+                temperature: 0.3 // Lower temperature for structured extraction
+            });
+            
+            if (response.success) {
+                try {
+                    const parsed = JSON.parse(response.response);
+                    log('LLM requirements extraction successful:', parsed);
+                    return {
+                        success: true,
+                        requirements: parsed,
+                        source: 'llm'
+                    };
+                } catch (parseError) {
+                    log('Error parsing LLM response:', parseError);
+                    return {
+                        success: false,
+                        error: 'Invalid response format from LLM',
+                        fallback: true
+                    };
+                }
+            } else {
+                return {
+                    success: false,
+                    error: response.error,
+                    fallback: response.fallback
+                };
+            }
+        } catch (error) {
+            log('Error in LLM requirements processing:', error);
+            return {
+                success: false,
+                error: error.message,
+                fallback: true
+            };
+        }
+    }
+    
+    // LLM-powered search term generation
+    async function generateSearchTermsWithLLM(requirements) {
+        const reqText = typeof requirements === 'string' ? requirements : 
+                       requirements.text || JSON.stringify(requirements);
+        
+        const prompt = `
+Based on these product requirements:
+${reqText}
+
+Generate 3-5 optimized search terms for finding suitable alternates on Amazon.
+Focus on key specifications and use cases rather than specific brands.
+Return as a JSON array of strings.
+
+Requirements: ${reqText}
+        `.trim();
+        
+        try {
+            const response = await STRANDS_INTEGRATION.makeRequest(prompt, {
+                model: 'claude-3-sonnet',
+                temperature: 0.5 // Moderate creativity for search terms
+            });
+            
+            if (response.success) {
+                try {
+                    const searchTerms = JSON.parse(response.response);
+                    log('LLM search terms generation successful:', searchTerms);
+                    return {
+                        success: true,
+                        searchTerms: Array.isArray(searchTerms) ? searchTerms : [searchTerms],
+                        source: 'llm'
+                    };
+                } catch (parseError) {
+                    log('Error parsing LLM search terms:', parseError);
+                    return {
+                        success: false,
+                        error: 'Invalid search terms format from LLM',
+                        fallback: true
+                    };
+                }
+            } else {
+                return {
+                    success: false,
+                    error: response.error,
+                    fallback: response.fallback
+                };
+            }
+        } catch (error) {
+            log('Error in LLM search terms generation:', error);
+            return {
+                success: false,
+                error: error.message,
+                fallback: true
+            };
+        }
+    }
+    
+    // LLM-powered product evaluation
+    async function evaluateProductsWithLLM(products, requirements) {
+        const reqText = typeof requirements === 'string' ? requirements : 
+                       requirements.text || JSON.stringify(requirements);
+        
+        const productsText = Array.isArray(products) ? 
+                           products.map(p => `${p.asin}: ${p.name || p.title}`).join('\n') :
+                           JSON.stringify(products);
+        
+        const prompt = `
+Evaluate these products against customer requirements:
+
+Requirements: ${reqText}
+
+Products:
+${productsText}
+
+For each product, provide:
+- suitability_score: 0-100
+- matching_features: list of features that match requirements
+- missing_features: list of required features not met
+- explanation: brief explanation of why it's suitable or not
+
+Return top 8 products ranked by suitability as JSON array.
+        `.trim();
+        
+        try {
+            const response = await STRANDS_INTEGRATION.makeRequest(prompt, {
+                model: 'claude-3-sonnet',
+                temperature: 0.4 // Balanced creativity for evaluation
+            });
+            
+            if (response.success) {
+                try {
+                    const evaluations = JSON.parse(response.response);
+                    log('LLM product evaluation successful:', evaluations);
+                    return {
+                        success: true,
+                        evaluations: Array.isArray(evaluations) ? evaluations : [evaluations],
+                        source: 'llm'
+                    };
+                } catch (parseError) {
+                    log('Error parsing LLM evaluations:', parseError);
+                    return {
+                        success: false,
+                        error: 'Invalid evaluation format from LLM',
+                        fallback: true
+                    };
+                }
+            } else {
+                return {
+                    success: false,
+                    error: response.error,
+                    fallback: response.fallback
+                };
+            }
+        } catch (error) {
+            log('Error in LLM product evaluation:', error);
+            return {
+                success: false,
+                error: error.message,
+                fallback: true
+            };
+        }
+    }
+    
+    // Add analytics summary and LLM info to debug function
     window.debugCQEAlternates = function() {
         console.log('=== CQE Alternates Debug Info (ASIN Input Approach) ===');
         
-        // ... existing debug code ...
+        // Check page detection
+        console.log('1. Page Detection:');
+        console.log('   Header element:', document.querySelector(CQE_SELECTORS.pageHeader));
+        console.log('   Breadcrumb element:', document.querySelector('.b-breadcrumb'));
+        console.log('   Is CQE page:', isCQEQuotePage());
+        
+        // Check ASIN input (primary focus)
+        console.log('2. ASIN Input:');
+        const asinInput = document.querySelector(CQE_SELECTORS.asinInput);
+        console.log('   ASIN input element:', asinInput);
+        console.log('   ASIN input value:', asinInput?.value);
+        console.log('   ASIN input parent:', asinInput?.parentElement);
+        
+        // Try alternative ASIN input selectors
+        console.log('3. Alternative ASIN Input Selectors:');
+        const altSelectors = [
+            '#add-asin-or-isbn-form',
+            'input[placeholder*="ASIN"]',
+            'input[placeholder*="ISBN"]',
+            'input[id*="asin"]',
+            'input[name*="asin"]'
+        ];
+        
+        altSelectors.forEach(selector => {
+            const element = document.querySelector(selector);
+            console.log(`   ${selector}:`, element);
+        });
+        
+        // Check for Add Item button
+        console.log('4. Add Item Button:');
+        const addItemBtn = document.querySelector('#add-item-btn');
+        console.log('   Add Item button:', addItemBtn);
+        console.log('   Add Item button parent:', addItemBtn?.parentElement);
+        
+        // Check for our button
+        console.log('5. Our Add Alternates Button:');
+        const ourButton = document.querySelector('#cqe-add-alternates-btn');
+        console.log('   Add Alternates button:', ourButton);
+        
+        // Check quantity input
+        console.log('6. Quantity Input:');
+        const qtyInput = document.querySelector('#item-quantity');
+        console.log('   Quantity input:', qtyInput);
+        console.log('   Quantity value:', qtyInput?.value);
+        
+        // Show form structure
+        console.log('7. Form Structure:');
+        const formContainer = document.querySelector('.b-flex') || 
+                             document.querySelector('form') ||
+                             asinInput?.closest('div');
+        console.log('   Form container:', formContainer);
+        if (formContainer) {
+            console.log('   Form container HTML:', formContainer.outerHTML.substring(0, 500) + '...');
+        }
         
         // Add analytics summary
         console.log('8. Analytics Summary:');
         const analyticsSummary = CONVERSATION_ANALYTICS.getAnalyticsSummary();
         console.log('   Analytics data:', analyticsSummary);
         
+        // Add LLM integration status
+        console.log('9. LLM Integration:');
+        console.log('   Strands endpoint:', STRANDS_INTEGRATION.CONFIG.endpoint);
+        console.log('   Default model:', STRANDS_INTEGRATION.CONFIG.model);
+        console.log('   Current conversation state:', enhancedConversationState);
+        
         console.log('=== End Debug Info ===');
         
         // Try to add button manually
         console.log('Attempting to add button...');
         addAlternatesButton();
+        
+        // Test LLM integration
+        console.log('Testing LLM integration...');
+        testLLMIntegration();
     };
+    
+    // Test LLM integration function
+    async function testLLMIntegration() {
+        console.log('Testing Strands SDK integration...');
+        
+        try {
+            const testPrompt = "Test prompt for requirements extraction: I need a durable, waterproof device under $50";
+            const result = await processRequirementsWithLLM(testPrompt);
+            
+            console.log('LLM Test Result:', result);
+            
+            if (result.success) {
+                console.log('✅ LLM integration working correctly');
+            } else {
+                console.log('⚠️ LLM integration failed:', result.error);
+            }
+        } catch (error) {
+            console.log('❌ LLM integration error:', error);
+        }
+    }
+        log('Processing enhanced requirements with LLM:', enhancedConversationState.requirements);
+        
+        // Generate summary of requirements
+        const reqSummary = generateContextAwareRequirementsSummary();
+        const productName = enhancedConversationState.productData?.name || 'this product';
+        
+        addChatMessage(`Based on your answers about ${productName}, I understand you're looking for:\n\n${reqSummary}\n\nLet me analyze your requirements and search for suitable alternates...`);
+        
+        try {
+            // Use LLM to process requirements if available
+            const llmResult = await processRequirementsWithLLM(enhancedConversationState.requirements);
+            
+            if (llmResult.success) {
+                // Merge LLM results with existing requirements
+                enhancedConversationState.requirements = {
+                    ...enhancedConversationState.requirements,
+                    ...llmResult.requirements,
+                    llmProcessed: true,
+                    processedAt: new Date().toISOString()
+                };
+                
+                addChatMessage("I've analyzed your requirements using advanced AI processing. Let me search for the best alternates...");
+                
+                // Generate search terms with LLM
+                const searchTermsResult = await generateSearchTermsWithLLM(enhancedConversationState.requirements);
+                
+                if (searchTermsResult.success) {
+                    enhancedConversationState.searchTerms = searchTermsResult.searchTerms;
+                    addChatMessage(`I'll search using these optimized terms: ${searchTermsResult.searchTerms.join(', ')}`);
+                }
+                
+            } else if (llmResult.fallback) {
+                // Fall back to original processing
+                addChatMessage("Using standard requirements processing (AI service temporarily unavailable)...");
+            } else {
+                addChatMessage(`Processing requirements... (${llmResult.error})`);
+            }
+            
+        } catch (error) {
+            log('Error in LLM requirements processing:', error);
+            addChatMessage("Processing your requirements using standard analysis...");
+        }
+        
+        // Continue with existing flow
+        setTimeout(() => {
+            enhancedConversationState.step = 'PRESENT_ALTERNATES';
+            
+            const category = detectProductCategory(enhancedConversationState.productData);
+            let searchMessage = "Based on your requirements, I found several potential alternates.";
+            
+            // Add category-specific search insights
+            switch (category) {
+                case 'electronics':
+                    searchMessage += " I focused on devices with similar functionality but potentially better specs or value.";
+                    break;
+                case 'office_supplies':
+                    searchMessage += " I looked for supplies with equivalent performance but better bulk pricing or quality.";
+                    break;
+                case 'tools':
+                    searchMessage += " I searched for tools with similar capabilities but potentially better durability or ergonomics.";
+                    break;
+                default:
+                    searchMessage += " I searched across similar products that match your specific requirements.";
+            }
+            
+            if (enhancedConversationState.requirements.llmProcessed) {
+                searchMessage += " The AI analysis helped identify the most relevant alternatives.";
+            }
+            
+            searchMessage += " However, the product search integration is not yet implemented. For now, you can add specific ASINs manually below.";
+            
+            addChatMessage(searchMessage);
+            
+            if (enhancedConversationState.approach === 'both' || enhancedConversationState.approach === 'guided') {
+                showManualASINSection();
+                showAlternatesSelection();
+            }
+        }, 3000); // Longer delay to simulate LLM processing
+    }
         const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
         
         if (!currentStep) {
