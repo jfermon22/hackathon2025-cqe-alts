@@ -1306,24 +1306,554 @@
         }
     }
     
-    // Add periodic auto-save during long conversations
-    let autoSaveInterval;
-    
-    function startAutoSaveInterval() {
-        // Auto-save every 30 seconds during active conversation
-        autoSaveInterval = setInterval(() => {
-            if (enhancedConversationState.conversationHistory.length > 1) {
-                autoSaveConversationState();
+    // Advanced conversation analytics system
+    const CONVERSATION_ANALYTICS = {
+        ANALYTICS_KEY: 'cqe_alternates_analytics',
+        
+        // Initialize analytics data structure
+        initializeAnalytics: function() {
+            const analytics = {
+                sessions: [],
+                aggregateStats: {
+                    totalSessions: 0,
+                    completedSessions: 0,
+                    averageSessionDuration: 0,
+                    mostCommonApproach: null,
+                    topProductCategories: {},
+                    conversionRate: 0,
+                    averageAlternatesAdded: 0,
+                    commonDropOffPoints: {},
+                    userSatisfactionIndicators: {}
+                },
+                lastUpdated: new Date().toISOString()
+            };
+            
+            this.saveAnalytics(analytics);
+            return analytics;
+        },
+        
+        // Save analytics to localStorage
+        saveAnalytics: function(analytics) {
+            try {
+                localStorage.setItem(this.ANALYTICS_KEY, JSON.stringify(analytics));
+                return true;
+            } catch (error) {
+                log('Error saving analytics:', error);
+                return false;
             }
-        }, 30000);
+        },
+        
+        // Load analytics from localStorage
+        loadAnalytics: function() {
+            try {
+                const saved = localStorage.getItem(this.ANALYTICS_KEY);
+                return saved ? JSON.parse(saved) : this.initializeAnalytics();
+            } catch (error) {
+                log('Error loading analytics:', error);
+                return this.initializeAnalytics();
+            }
+        },
+        
+        // Start tracking a new conversation session
+        startSession: function(productData) {
+            const analytics = this.loadAnalytics();
+            
+            const session = {
+                sessionId: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                startTime: new Date().toISOString(),
+                endTime: null,
+                productData: {
+                    asin: productData.asin,
+                    name: productData.name,
+                    category: detectProductCategory(productData)
+                },
+                conversationFlow: [],
+                userActions: [],
+                approach: null,
+                completed: false,
+                alternatesAdded: 0,
+                dropOffPoint: null,
+                userSatisfactionScore: null,
+                totalMessages: 0,
+                userMessages: 0,
+                assistantMessages: 0,
+                averageResponseTime: 0,
+                requirementsComplexity: 0
+            };
+            
+            analytics.sessions.push(session);
+            analytics.aggregateStats.totalSessions++;
+            
+            this.saveAnalytics(analytics);
+            
+            // Store current session ID for tracking
+            this.currentSessionId = session.sessionId;
+            
+            log('Analytics session started:', session.sessionId);
+            return session.sessionId;
+        },
+        
+        // Track conversation step progression
+        trackStepProgression: function(fromStep, toStep, userInput = null) {
+            if (!this.currentSessionId) return;
+            
+            const analytics = this.loadAnalytics();
+            const session = analytics.sessions.find(s => s.sessionId === this.currentSessionId);
+            
+            if (session) {
+                session.conversationFlow.push({
+                    timestamp: new Date().toISOString(),
+                    fromStep: fromStep,
+                    toStep: toStep,
+                    userInput: userInput ? userInput.substring(0, 100) : null // Truncate for privacy
+                });
+                
+                this.saveAnalytics(analytics);
+            }
+        },
+        
+        // Track user actions (ASIN additions, removals, etc.)
+        trackUserAction: function(action, details = {}) {
+            if (!this.currentSessionId) return;
+            
+            const analytics = this.loadAnalytics();
+            const session = analytics.sessions.find(s => s.sessionId === this.currentSessionId);
+            
+            if (session) {
+                session.userActions.push({
+                    timestamp: new Date().toISOString(),
+                    action: action,
+                    details: details
+                });
+                
+                // Update specific counters
+                if (action === 'asin_added') {
+                    session.alternatesAdded++;
+                }
+                
+                this.saveAnalytics(analytics);
+            }
+        },
+        
+        // Track message exchange
+        trackMessage: function(isUser, message, responseTime = null) {
+            if (!this.currentSessionId) return;
+            
+            const analytics = this.loadAnalytics();
+            const session = analytics.sessions.find(s => s.sessionId === this.currentSessionId);
+            
+            if (session) {
+                session.totalMessages++;
+                
+                if (isUser) {
+                    session.userMessages++;
+                } else {
+                    session.assistantMessages++;
+                }
+                
+                // Track response time for user messages
+                if (isUser && responseTime) {
+                    const currentAvg = session.averageResponseTime;
+                    const messageCount = session.userMessages;
+                    session.averageResponseTime = ((currentAvg * (messageCount - 1)) + responseTime) / messageCount;
+                }
+                
+                this.saveAnalytics(analytics);
+            }
+        },
+        
+        // End conversation session
+        endSession: function(completed = false, dropOffPoint = null) {
+            if (!this.currentSessionId) return;
+            
+            const analytics = this.loadAnalytics();
+            const session = analytics.sessions.find(s => s.sessionId === this.currentSessionId);
+            
+            if (session) {
+                session.endTime = new Date().toISOString();
+                session.completed = completed;
+                session.dropOffPoint = dropOffPoint;
+                
+                // Calculate session duration
+                const duration = new Date(session.endTime) - new Date(session.startTime);
+                session.duration = duration;
+                
+                // Update aggregate stats
+                if (completed) {
+                    analytics.aggregateStats.completedSessions++;
+                }
+                
+                this.updateAggregateStats(analytics);
+                this.saveAnalytics(analytics);
+                
+                log('Analytics session ended:', this.currentSessionId, 'Completed:', completed);
+                this.currentSessionId = null;
+            }
+        },
+        
+        // Update aggregate statistics
+        updateAggregateStats: function(analytics) {
+            const sessions = analytics.sessions;
+            const stats = analytics.aggregateStats;
+            
+            // Conversion rate
+            stats.conversionRate = sessions.length > 0 ? 
+                (stats.completedSessions / stats.totalSessions) * 100 : 0;
+            
+            // Average session duration
+            const completedSessions = sessions.filter(s => s.completed && s.duration);
+            stats.averageSessionDuration = completedSessions.length > 0 ?
+                completedSessions.reduce((sum, s) => sum + s.duration, 0) / completedSessions.length : 0;
+            
+            // Average alternates added
+            stats.averageAlternatesAdded = sessions.length > 0 ?
+                sessions.reduce((sum, s) => sum + s.alternatesAdded, 0) / sessions.length : 0;
+            
+            // Most common approach
+            const approaches = sessions.filter(s => s.approach).map(s => s.approach);
+            stats.mostCommonApproach = this.getMostCommon(approaches);
+            
+            // Top product categories
+            const categories = sessions.map(s => s.productData.category);
+            stats.topProductCategories = this.getFrequencyMap(categories);
+            
+            // Common drop-off points
+            const dropOffs = sessions.filter(s => s.dropOffPoint).map(s => s.dropOffPoint);
+            stats.commonDropOffPoints = this.getFrequencyMap(dropOffs);
+            
+            stats.lastUpdated = new Date().toISOString();
+        },
+        
+        // Helper function to get most common item
+        getMostCommon: function(array) {
+            if (array.length === 0) return null;
+            
+            const frequency = this.getFrequencyMap(array);
+            return Object.keys(frequency).reduce((a, b) => frequency[a] > frequency[b] ? a : b);
+        },
+        
+        // Helper function to get frequency map
+        getFrequencyMap: function(array) {
+            return array.reduce((freq, item) => {
+                freq[item] = (freq[item] || 0) + 1;
+                return freq;
+            }, {});
+        },
+        
+        // Get analytics summary for debugging/monitoring
+        getAnalyticsSummary: function() {
+            const analytics = this.loadAnalytics();
+            return {
+                totalSessions: analytics.aggregateStats.totalSessions,
+                completedSessions: analytics.aggregateStats.completedSessions,
+                conversionRate: analytics.aggregateStats.conversionRate.toFixed(1) + '%',
+                averageAlternatesAdded: analytics.aggregateStats.averageAlternatesAdded.toFixed(1),
+                mostCommonApproach: analytics.aggregateStats.mostCommonApproach,
+                topCategories: Object.entries(analytics.aggregateStats.topProductCategories)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 3)
+                    .map(([cat, count]) => `${cat}: ${count}`)
+            };
+        }
+    };
+    
+    // Enhanced conversation tracking integration
+    let lastMessageTime = Date.now();
+    
+    // Enhanced message adding with analytics tracking
+    function addChatMessage(message, isUser = false) {
+        const messagesContainer = document.querySelector('#cqe-chat-messages');
+        if (!messagesContainer) return;
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+        
+        const sender = isUser ? 'You' : 'Assistant';
+        messageDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
+        
+        messagesContainer.appendChild(messageDiv);
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Calculate response time for analytics
+        const currentTime = Date.now();
+        const responseTime = isUser ? null : (currentTime - lastMessageTime);
+        lastMessageTime = currentTime;
+        
+        // Store in enhanced conversation history
+        enhancedConversationState.conversationHistory.push({
+            message: message,
+            isUser: isUser,
+            timestamp: new Date().toISOString(),
+            step: enhancedConversationState.step,
+            questionIndex: enhancedConversationState.currentQuestion
+        });
+        
+        // Track message in analytics
+        CONVERSATION_ANALYTICS.trackMessage(isUser, message, responseTime);
+        
+        // Auto-save state after each message
+        autoSaveConversationState();
+        
+        log(`Chat message added (${sender}):`, message);
     }
     
-    function stopAutoSaveInterval() {
-        if (autoSaveInterval) {
-            clearInterval(autoSaveInterval);
-            autoSaveInterval = null;
+    // Enhanced conversation step processing with analytics
+    function processEnhancedUserInput(userInput) {
+        const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
+        
+        if (!currentStep) {
+            log('Error: Invalid conversation step:', enhancedConversationState.step);
+            return;
+        }
+        
+        // Track step progression
+        const previousStep = enhancedConversationState.step;
+        
+        // Add user message to chat
+        addChatMessage(userInput, true);
+        
+        // Process based on step type and context
+        switch (enhancedConversationState.step) {
+            case 'WILLINGNESS_CHECK':
+                handleEnhancedWillingnessResponse(userInput);
+                break;
+                
+            case 'EXPLAIN_BENEFITS':
+                handleBenefitsResponse(userInput);
+                break;
+                
+            case 'DETERMINE_APPROACH':
+                handleApproachSelection(userInput);
+                break;
+                
+            case 'REQUIREMENTS_GATHERING':
+                handleGuidedRequirements(userInput);
+                break;
+                
+            case 'REFINE_SELECTION':
+                handleSelectionRefinement(userInput);
+                break;
+                
+            case 'CONFIRM_SUBMISSION':
+                handleSubmissionConfirmation(userInput);
+                break;
+                
+            case 'MODIFY_SUMMARY':
+                handleSummaryModification(userInput);
+                break;
+                
+            default:
+                // For other steps, use standard processing
+                advanceEnhancedConversation();
+                break;
+        }
+        
+        // Track step progression if step changed
+        if (previousStep !== enhancedConversationState.step) {
+            CONVERSATION_ANALYTICS.trackStepProgression(previousStep, enhancedConversationState.step, userInput);
         }
     }
+    
+    // Enhanced approach selection with analytics tracking
+    function handleApproachSelection(response) {
+        const normalizedResponse = response.toLowerCase().trim();
+        
+        if (normalizedResponse.includes('question') || normalizedResponse.includes('ask me')) {
+            enhancedConversationState.approach = 'guided';
+            CONVERSATION_ANALYTICS.trackUserAction('approach_selected', { approach: 'guided' });
+            enhancedConversationState.step = 'REQUIREMENTS_GATHERING';
+            startGuidedRequirements();
+        } else if (normalizedResponse.includes('specific') || normalizedResponse.includes('add') || normalizedResponse.includes('asin')) {
+            enhancedConversationState.approach = 'manual';
+            CONVERSATION_ANALYTICS.trackUserAction('approach_selected', { approach: 'manual' });
+            enhancedConversationState.step = 'MANUAL_ADDITION_ONLY';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.MANUAL_ADDITION_ONLY.message);
+            showManualASINSection();
+        } else if (normalizedResponse.includes('both')) {
+            enhancedConversationState.approach = 'both';
+            CONVERSATION_ANALYTICS.trackUserAction('approach_selected', { approach: 'both' });
+            enhancedConversationState.step = 'REQUIREMENTS_GATHERING';
+            startGuidedRequirements();
+        } else {
+            addChatMessage("Please choose one: 'Ask me questions' for guided suggestions, 'I'll add specific ASINs' for manual input, or 'Both' for a combination approach.");
+        }
+    }
+    
+    // Enhanced manual ASIN handling with analytics tracking
+    function handleManualASINAdd() {
+        const asinInput = document.querySelector('#cqe-manual-asin');
+        if (!asinInput) return;
+        
+        const rawInput = asinInput.value.trim();
+        
+        if (!rawInput) {
+            showInputError(asinInput, "Please enter an ASIN or Amazon URL.");
+            return;
+        }
+        
+        // Try to extract ASIN from input
+        const extractedASIN = ASIN_VALIDATION.extract(rawInput);
+        
+        if (!extractedASIN) {
+            showInputError(asinInput, "Invalid ASIN format. Please enter a valid 10-character ASIN or Amazon product URL.");
+            CONVERSATION_ANALYTICS.trackUserAction('asin_validation_failed', { input: rawInput.substring(0, 20) });
+            return;
+        }
+        
+        // Check if already added
+        if (enhancedConversationState.selectedAlternates.some(alt => alt.asin === extractedASIN)) {
+            showInputError(asinInput, "This ASIN has already been added.");
+            CONVERSATION_ANALYTICS.trackUserAction('asin_duplicate_attempt', { asin: extractedASIN });
+            return;
+        }
+        
+        // Clear any previous errors
+        clearInputError(asinInput);
+        
+        // Add to selected alternates
+        const alternate = {
+            asin: extractedASIN,
+            source: 'manual',
+            name: `Manual Entry: ${extractedASIN}`,
+            selected: true,
+            addedAt: new Date().toISOString()
+        };
+        
+        enhancedConversationState.selectedAlternates.push(alternate);
+        
+        // Track successful ASIN addition
+        CONVERSATION_ANALYTICS.trackUserAction('asin_added', { 
+            asin: extractedASIN, 
+            source: 'manual',
+            totalAlternates: enhancedConversationState.selectedAlternates.length
+        });
+        
+        // Update UI
+        updateManualASINsList();
+        updateConfirmButton();
+        
+        // Clear input
+        asinInput.value = '';
+        
+        addChatMessage(`Added ASIN ${extractedASIN} to your alternates list.`, false);
+        
+        // Auto-save state after adding ASIN
+        autoSaveConversationState();
+        
+        log('Manual ASIN added:', alternate);
+    }
+    
+    // Enhanced modal opening with analytics session start
+    function openModal(productData) {
+        let modal = document.querySelector('#cqe-alternates-modal');
+        
+        // Create modal if it doesn't exist
+        if (!modal) {
+            modal = createModal();
+        }
+        
+        // Start analytics session
+        CONVERSATION_ANALYTICS.startSession(productData);
+        
+        // Check if we should restore a previous conversation for this product
+        const savedState = CONVERSATION_PERSISTENCE.loadState();
+        let stateRestored = false;
+        
+        if (savedState && savedState.productData && 
+            savedState.productData.asin === productData.asin) {
+            
+            // Ask user if they want to continue previous conversation
+            const continueConversation = confirm(
+                `I found a previous conversation about ${productData.name}. Would you like to continue where you left off?`
+            );
+            
+            if (continueConversation) {
+                stateRestored = restoreConversationState();
+                
+                if (stateRestored) {
+                    // Update product context with current data (in case it changed)
+                    enhancedConversationState.productData = productData;
+                    
+                    addChatMessage("Welcome back! I've restored our previous conversation. You can continue from where we left off.", false);
+                    CONVERSATION_ANALYTICS.trackUserAction('conversation_restored', { asin: productData.asin });
+                }
+            }
+        }
+        
+        // If no state was restored, start fresh
+        if (!stateRestored) {
+            resetConversationState(productData);
+        }
+        
+        // Update product context display
+        const contextDiv = document.querySelector('#cqe-product-context');
+        if (contextDiv && productData) {
+            contextDiv.innerHTML = `
+                <strong>Product:</strong> ${productData.name}<br>
+                <strong>ASIN:</strong> ${productData.asin}<br>
+                <strong>Quantity:</strong> ${productData.quantity}<br>
+                <strong>Current Price:</strong> $${productData.unitPrice}/unit
+            `;
+        }
+        
+        // Show modal
+        modal.style.display = 'flex';
+        
+        // Start auto-save interval
+        startAutoSaveInterval();
+        
+        // Focus on chat input
+        setTimeout(() => {
+            const chatInput = document.querySelector('#cqe-chat-input');
+            if (chatInput) {
+                chatInput.focus();
+            }
+        }, 100);
+        
+        log('Modal opened for product:', productData);
+    }
+    
+    // Enhanced modal closing with analytics session end
+    function closeModal() {
+        const modal = document.querySelector('#cqe-alternates-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            
+            // Stop auto-save interval
+            stopAutoSaveInterval();
+            
+            // End analytics session
+            const completed = enhancedConversationState.selectedAlternates.length > 0;
+            const dropOffPoint = completed ? null : enhancedConversationState.step;
+            CONVERSATION_ANALYTICS.endSession(completed, dropOffPoint);
+            
+            // Clear conversation state when modal is closed
+            // (user can restore it if they reopen for the same product)
+            CONVERSATION_PERSISTENCE.clearState();
+            
+            log('Modal closed and conversation state cleared');
+        }
+    }
+    
+    // Add analytics summary to debug function
+    window.debugCQEAlternates = function() {
+        console.log('=== CQE Alternates Debug Info (ASIN Input Approach) ===');
+        
+        // ... existing debug code ...
+        
+        // Add analytics summary
+        console.log('8. Analytics Summary:');
+        const analyticsSummary = CONVERSATION_ANALYTICS.getAnalyticsSummary();
+        console.log('   Analytics data:', analyticsSummary);
+        
+        console.log('=== End Debug Info ===');
+        
+        // Try to add button manually
+        console.log('Attempting to add button...');
+        addAlternatesButton();
+    };
         const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
         
         if (!currentStep) {
