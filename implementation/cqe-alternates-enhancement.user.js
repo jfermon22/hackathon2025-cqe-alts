@@ -106,8 +106,11 @@
                             <input type="text" 
                                    id="cqe-manual-asin" 
                                    class="b-form-control" 
-                                   placeholder="Enter ASIN (e.g., B08N5WRWNW)">
+                                   placeholder="Enter ASIN (e.g., B08N5WRWNW) or Amazon URL">
                             <button id="cqe-add-asin" class="b-button b-outline">Add ASIN</button>
+                        </div>
+                        <div class="input-help" style="font-size: 0.8rem; color: #666; margin-bottom: 1rem;">
+                            You can enter a 10-character ASIN or paste an Amazon product URL
                         </div>
                         <div id="cqe-manual-asins-list"></div>
                     </div>
@@ -519,14 +522,35 @@
     
     // Handle requirements gathering input
     function handleRequirementsInput(requirements) {
-        conversationState.requirements = requirements;
+        const validation = INPUT_HANDLERS.validateRequirements(requirements);
+        
+        if (!validation.valid) {
+            addChatMessage(validation.error, false);
+            return;
+        }
+        
+        const sanitizedRequirements = validation.requirements;
+        const keywords = INPUT_HANDLERS.extractKeywords(sanitizedRequirements);
+        
+        conversationState.requirements = {
+            text: sanitizedRequirements,
+            keywords: keywords,
+            processedAt: new Date().toISOString()
+        };
+        
         conversationState.step = 'PROCESS_REQUIREMENTS';
         
-        addChatMessage(CONVERSATION_STEPS.PROCESS_REQUIREMENTS.message);
+        // Provide feedback on extracted keywords
+        let keywordFeedback = '';
+        if (keywords.length > 0) {
+            keywordFeedback = ` I noticed you're particularly interested in: ${keywords.join(', ')}.`;
+        }
+        
+        addChatMessage(`Thank you for that information.${keywordFeedback} Let me process your requirements and search for suitable alternates...`);
         
         // Simulate processing delay
         setTimeout(() => {
-            processRequirements(requirements);
+            processRequirements(conversationState.requirements);
         }, 2000);
     }
     
@@ -562,32 +586,196 @@
         }
     }
     
-    // Handle manual ASIN addition
+    // ASIN validation utilities
+    const ASIN_VALIDATION = {
+        // Standard ASIN regex pattern
+        REGEX: /^([0-9]{9}[0-9X]|[A-Z][A-Z0-9]{9})$/,
+        
+        // Validate ASIN format
+        validate: function(asin) {
+            if (!asin || typeof asin !== 'string') {
+                return { 
+                    valid: false, 
+                    error: "ASIN is required and must be a string" 
+                };
+            }
+            
+            // Remove whitespace and convert to uppercase
+            const cleanASIN = asin.trim().toUpperCase();
+            
+            if (cleanASIN.length !== 10) {
+                return { 
+                    valid: false, 
+                    error: "ASIN must be exactly 10 characters long" 
+                };
+            }
+            
+            if (!this.REGEX.test(cleanASIN)) {
+                return { 
+                    valid: false, 
+                    error: "Invalid ASIN format. Must be 10 digits (last can be X) or start with letter followed by 9 alphanumeric characters" 
+                };
+            }
+            
+            return { 
+                valid: true, 
+                asin: cleanASIN 
+            };
+        },
+        
+        // Extract ASIN from various input formats
+        extract: function(input) {
+            if (!input || typeof input !== 'string') {
+                return null;
+            }
+            
+            const cleanInput = input.trim();
+            
+            // Direct ASIN
+            if (cleanInput.length === 10) {
+                const validation = this.validate(cleanInput);
+                return validation.valid ? validation.asin : null;
+            }
+            
+            // Amazon URL patterns
+            const urlPatterns = [
+                /\/dp\/([A-Z0-9]{10})/i,
+                /\/gp\/product\/([A-Z0-9]{10})/i,
+                /asin=([A-Z0-9]{10})/i,
+                /\/([A-Z0-9]{10})(?:\/|\?|$)/i
+            ];
+            
+            for (const pattern of urlPatterns) {
+                const match = cleanInput.match(pattern);
+                if (match && match[1]) {
+                    const validation = this.validate(match[1]);
+                    if (validation.valid) {
+                        return validation.asin;
+                    }
+                }
+            }
+            
+            return null;
+        },
+        
+        // Format ASIN for display
+        format: function(asin) {
+            const validation = this.validate(asin);
+            return validation.valid ? validation.asin : asin;
+        }
+    };
+    
+    // Enhanced input handling utilities
+    const INPUT_HANDLERS = {
+        // Sanitize user input
+        sanitize: function(input) {
+            if (!input || typeof input !== 'string') {
+                return '';
+            }
+            
+            return input
+                .trim()
+                .replace(/[<>]/g, '') // Remove potential HTML tags
+                .substring(0, 1000); // Limit length
+        },
+        
+        // Validate requirements input
+        validateRequirements: function(requirements) {
+            const sanitized = this.sanitize(requirements);
+            
+            if (!sanitized) {
+                return {
+                    valid: false,
+                    error: "Please provide some requirements for the alternate products."
+                };
+            }
+            
+            if (sanitized.length < 10) {
+                return {
+                    valid: false,
+                    error: "Please provide more detailed requirements (at least 10 characters)."
+                };
+            }
+            
+            return {
+                valid: true,
+                requirements: sanitized
+            };
+        },
+        
+        // Extract key information from requirements
+        extractKeywords: function(requirements) {
+            if (!requirements) return [];
+            
+            const text = requirements.toLowerCase();
+            const keywords = [];
+            
+            // Price-related keywords
+            if (text.includes('price') || text.includes('cost') || text.includes('budget') || text.includes('cheap') || text.includes('expensive')) {
+                keywords.push('price-sensitive');
+            }
+            
+            // Brand-related keywords
+            const brandMatches = text.match(/\b(brand|manufacturer|made by|from)\b/g);
+            if (brandMatches) {
+                keywords.push('brand-specific');
+            }
+            
+            // Technical specifications
+            if (text.includes('spec') || text.includes('technical') || text.includes('performance') || text.includes('feature')) {
+                keywords.push('technical-specs');
+            }
+            
+            // Quality-related
+            if (text.includes('quality') || text.includes('durable') || text.includes('reliable')) {
+                keywords.push('quality-focused');
+            }
+            
+            // Use case related
+            if (text.includes('use') || text.includes('purpose') || text.includes('application')) {
+                keywords.push('use-case-specific');
+            }
+            
+            return keywords;
+        }
+    };
+    
+    // Enhanced manual ASIN handling
     function handleManualASINAdd() {
         const asinInput = document.querySelector('#cqe-manual-asin');
         if (!asinInput) return;
         
-        const asin = asinInput.value.trim().toUpperCase();
+        const rawInput = asinInput.value.trim();
         
-        // Validate ASIN format
-        const asinRegex = /^([0-9]{9}[0-9X]|[A-Z][A-Z0-9]{9})$/;
-        if (!asinRegex.test(asin)) {
-            addChatMessage("Invalid ASIN format. Please enter a valid 10-character ASIN.", false);
+        if (!rawInput) {
+            showInputError(asinInput, "Please enter an ASIN or Amazon URL.");
+            return;
+        }
+        
+        // Try to extract ASIN from input
+        const extractedASIN = ASIN_VALIDATION.extract(rawInput);
+        
+        if (!extractedASIN) {
+            showInputError(asinInput, "Invalid ASIN format. Please enter a valid 10-character ASIN or Amazon product URL.");
             return;
         }
         
         // Check if already added
-        if (conversationState.selectedAlternates.some(alt => alt.asin === asin)) {
-            addChatMessage("This ASIN has already been added.", false);
+        if (conversationState.selectedAlternates.some(alt => alt.asin === extractedASIN)) {
+            showInputError(asinInput, "This ASIN has already been added.");
             return;
         }
         
+        // Clear any previous errors
+        clearInputError(asinInput);
+        
         // Add to selected alternates
         const alternate = {
-            asin: asin,
+            asin: extractedASIN,
             source: 'manual',
-            name: 'Manual ASIN Entry',
-            selected: true
+            name: `Manual Entry: ${extractedASIN}`,
+            selected: true,
+            addedAt: new Date().toISOString()
         };
         
         conversationState.selectedAlternates.push(alternate);
@@ -599,8 +787,87 @@
         // Clear input
         asinInput.value = '';
         
-        addChatMessage(`Added ASIN ${asin} to your alternates list.`, false);
+        addChatMessage(`Added ASIN ${extractedASIN} to your alternates list.`, false);
         log('Manual ASIN added:', alternate);
+    }
+    
+    // Show input error
+    function showInputError(inputElement, message) {
+        // Remove existing error
+        clearInputError(inputElement);
+        
+        // Add error styling
+        inputElement.style.borderColor = '#d93025';
+        inputElement.style.backgroundColor = '#fef7f0';
+        
+        // Create error message element
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'input-error-message';
+        errorDiv.style.cssText = `
+            color: #d93025;
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+            padding: 0.25rem;
+            background: #fef7f0;
+            border-radius: 4px;
+            border-left: 3px solid #d93025;
+        `;
+        errorDiv.textContent = message;
+        
+        // Insert after input
+        inputElement.parentNode.insertBefore(errorDiv, inputElement.nextSibling);
+        
+        // Auto-clear error after 5 seconds
+        setTimeout(() => {
+            clearInputError(inputElement);
+        }, 5000);
+    }
+    
+    // Clear input error
+    function clearInputError(inputElement) {
+        // Reset input styling
+        inputElement.style.borderColor = '';
+        inputElement.style.backgroundColor = '';
+        
+        // Remove error message
+        const errorMsg = inputElement.parentNode.querySelector('.input-error-message');
+        if (errorMsg) {
+            errorMsg.remove();
+        }
+    }
+    
+    // Enhanced requirements handling
+    function handleRequirementsInput(requirements) {
+        const validation = INPUT_HANDLERS.validateRequirements(requirements);
+        
+        if (!validation.valid) {
+            addChatMessage(validation.error, false);
+            return;
+        }
+        
+        const sanitizedRequirements = validation.requirements;
+        const keywords = INPUT_HANDLERS.extractKeywords(sanitizedRequirements);
+        
+        conversationState.requirements = {
+            text: sanitizedRequirements,
+            keywords: keywords,
+            processedAt: new Date().toISOString()
+        };
+        
+        conversationState.step = 'PROCESS_REQUIREMENTS';
+        
+        // Provide feedback on extracted keywords
+        let keywordFeedback = '';
+        if (keywords.length > 0) {
+            keywordFeedback = ` I noticed you're particularly interested in: ${keywords.join(', ')}.`;
+        }
+        
+        addChatMessage(`Thank you for that information.${keywordFeedback} Let me process your requirements and search for suitable alternates...`);
+        
+        // Simulate processing delay
+        setTimeout(() => {
+            processRequirements(conversationState.requirements);
+        }, 2000);
     }
     
     // Update manual ASINs list display
