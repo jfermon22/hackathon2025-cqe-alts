@@ -69,6 +69,356 @@
         }
     }
     
+    // Create modal HTML structure
+    function createModal() {
+        const modalHtml = `
+            <div id="cqe-alternates-modal" class="cqe-modal-overlay" style="display: none;">
+                <div class="cqe-modal-content">
+                    <div class="cqe-modal-header">
+                        <h3>Add Alternate Products</h3>
+                        <button class="cqe-modal-close" type="button">&times;</button>
+                    </div>
+                    
+                    <div class="cqe-product-context" id="cqe-product-context">
+                        <!-- Product context will be inserted here -->
+                    </div>
+                    
+                    <div class="cqe-chat-container">
+                        <div id="cqe-chat-messages" class="cqe-chat-messages">
+                            <div class="chat-message assistant">
+                                <strong>Assistant:</strong> I'll help you find suitable alternate products. Let me start by asking: would you be willing to accept alternate ASINs for this request? This can help you get better pricing and availability options.
+                            </div>
+                        </div>
+                        
+                        <div class="cqe-chat-input-container">
+                            <input type="text" 
+                                   id="cqe-chat-input" 
+                                   class="b-form-control" 
+                                   placeholder="Type your response..."
+                                   style="flex: 1;">
+                            <button id="cqe-chat-send" class="b-button">Send</button>
+                        </div>
+                    </div>
+                    
+                    <div id="cqe-manual-asin-section" class="cqe-section" style="display:none;">
+                        <h4>Add ASINs Manually</h4>
+                        <div class="cqe-manual-input">
+                            <input type="text" 
+                                   id="cqe-manual-asin" 
+                                   class="b-form-control" 
+                                   placeholder="Enter ASIN (e.g., B08N5WRWNW)">
+                            <button id="cqe-add-asin" class="b-button b-outline">Add ASIN</button>
+                        </div>
+                        <div id="cqe-manual-asins-list"></div>
+                    </div>
+                    
+                    <div id="cqe-alternates-selection" class="cqe-section" style="display:none;">
+                        <h4>Select Suitable Alternates</h4>
+                        <div id="cqe-suggested-alternates"></div>
+                    </div>
+                    
+                    <div class="cqe-modal-footer">
+                        <button id="cqe-cancel-alternates" class="b-button b-outline">Cancel</button>
+                        <button id="cqe-confirm-alternates" class="b-button" disabled>
+                            Add Selected Alternates
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Insert modal into DOM
+        const modalRoot = document.querySelector(CQE_SELECTORS.modalRoot) || document.body;
+        modalRoot.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Add CSS styles
+        addModalStyles();
+        
+        // Setup modal event handlers
+        setupModalEventHandlers();
+        
+        log('Modal created and initialized');
+        return document.querySelector('#cqe-alternates-modal');
+    }
+    
+    // Add CSS styles for the modal
+    function addModalStyles() {
+        const styles = `
+            <style id="cqe-modal-styles">
+                /* Modal overlay */
+                .cqe-modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                }
+                
+                /* Modal content */
+                .cqe-modal-content {
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    width: 600px;
+                    max-width: 90vw;
+                    max-height: 80vh;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                /* Modal header */
+                .cqe-modal-header {
+                    padding: 1rem 1.5rem;
+                    border-bottom: 1px solid #ddd;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background: #f8f9fa;
+                }
+                
+                .cqe-modal-header h3 {
+                    margin: 0;
+                    font-size: 1.25rem;
+                    font-weight: 600;
+                }
+                
+                .cqe-modal-close {
+                    background: none;
+                    border: none;
+                    font-size: 1.5rem;
+                    cursor: pointer;
+                    padding: 0;
+                    width: 30px;
+                    height: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 4px;
+                }
+                
+                .cqe-modal-close:hover {
+                    background: rgba(0, 0, 0, 0.1);
+                }
+                
+                /* Product context */
+                .cqe-product-context {
+                    padding: 1rem 1.5rem;
+                    background: #f0f8ff;
+                    border-bottom: 1px solid #ddd;
+                    font-size: 0.9rem;
+                }
+                
+                /* Chat container */
+                .cqe-chat-container {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    min-height: 300px;
+                }
+                
+                .cqe-chat-messages {
+                    flex: 1;
+                    padding: 1rem;
+                    overflow-y: auto;
+                    max-height: 300px;
+                }
+                
+                /* Chat messages */
+                .chat-message {
+                    margin-bottom: 1rem;
+                    padding: 0.75rem;
+                    border-radius: 8px;
+                    line-height: 1.4;
+                }
+                
+                .chat-message.user {
+                    background: #e3f2fd;
+                    margin-left: 2rem;
+                }
+                
+                .chat-message.assistant {
+                    background: #f5f5f5;
+                    margin-right: 2rem;
+                }
+                
+                .chat-message strong {
+                    display: block;
+                    margin-bottom: 0.25rem;
+                    font-size: 0.9rem;
+                    color: #666;
+                }
+                
+                /* Chat input */
+                .cqe-chat-input-container {
+                    padding: 1rem;
+                    border-top: 1px solid #ddd;
+                    display: flex;
+                    gap: 0.5rem;
+                    align-items: center;
+                }
+                
+                /* Sections */
+                .cqe-section {
+                    padding: 1rem 1.5rem;
+                    border-top: 1px solid #ddd;
+                }
+                
+                .cqe-section h4 {
+                    margin: 0 0 1rem 0;
+                    font-size: 1rem;
+                    font-weight: 600;
+                }
+                
+                .cqe-manual-input {
+                    display: flex;
+                    gap: 0.5rem;
+                    margin-bottom: 1rem;
+                }
+                
+                /* Modal footer */
+                .cqe-modal-footer {
+                    padding: 1rem 1.5rem;
+                    border-top: 1px solid #ddd;
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.5rem;
+                    background: #f8f9fa;
+                }
+                
+                /* Button overrides for consistency */
+                .cqe-modal-content .b-button {
+                    padding: 0.5rem 1rem;
+                    border-radius: 4px;
+                    font-size: 0.9rem;
+                    cursor: pointer;
+                    border: 1px solid #007185;
+                    background: #007185;
+                    color: white;
+                }
+                
+                .cqe-modal-content .b-button:hover {
+                    background: #005a6b;
+                }
+                
+                .cqe-modal-content .b-button.b-outline {
+                    background: white;
+                    color: #007185;
+                }
+                
+                .cqe-modal-content .b-button.b-outline:hover {
+                    background: #f0f8ff;
+                }
+                
+                .cqe-modal-content .b-button:disabled {
+                    background: #ccc;
+                    border-color: #ccc;
+                    color: #666;
+                    cursor: not-allowed;
+                }
+                
+                .cqe-modal-content .b-form-control {
+                    padding: 0.5rem;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    font-size: 0.9rem;
+                }
+            </style>
+        `;
+        
+        // Add styles to head if not already present
+        if (!document.querySelector('#cqe-modal-styles')) {
+            document.head.insertAdjacentHTML('beforeend', styles);
+        }
+    }
+    
+    // Setup modal event handlers
+    function setupModalEventHandlers() {
+        // Close modal handlers
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('.cqe-modal-close, #cqe-cancel-alternates')) {
+                closeModal();
+            }
+            
+            if (e.target.matches('.cqe-modal-overlay')) {
+                closeModal();
+            }
+        });
+        
+        // ESC key to close modal
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.querySelector('#cqe-alternates-modal');
+                if (modal && modal.style.display !== 'none') {
+                    closeModal();
+                }
+            }
+        });
+        
+        // Chat input handlers (placeholder for Task 1.3)
+        document.addEventListener('keypress', (e) => {
+            if (e.target.matches('#cqe-chat-input') && e.key === 'Enter') {
+                // TODO: Implement chat functionality in Task 1.3
+                log('Chat input detected - will implement in Task 1.3');
+            }
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('#cqe-chat-send')) {
+                // TODO: Implement chat functionality in Task 1.3
+                log('Chat send clicked - will implement in Task 1.3');
+            }
+        });
+    }
+    
+    // Open modal with product context
+    function openModal(productData) {
+        let modal = document.querySelector('#cqe-alternates-modal');
+        
+        // Create modal if it doesn't exist
+        if (!modal) {
+            modal = createModal();
+        }
+        
+        // Update product context
+        const contextDiv = document.querySelector('#cqe-product-context');
+        if (contextDiv && productData) {
+            contextDiv.innerHTML = `
+                <strong>Product:</strong> ${productData.name}<br>
+                <strong>ASIN:</strong> ${productData.asin}<br>
+                <strong>Quantity:</strong> ${productData.quantity}<br>
+                <strong>Current Price:</strong> $${productData.unitPrice}/unit
+            `;
+        }
+        
+        // Show modal
+        modal.style.display = 'flex';
+        
+        // Focus on chat input
+        setTimeout(() => {
+            const chatInput = document.querySelector('#cqe-chat-input');
+            if (chatInput) {
+                chatInput.focus();
+            }
+        }, 100);
+        
+        log('Modal opened for product:', productData);
+    }
+    
+    // Close modal
+    function closeModal() {
+        const modal = document.querySelector('#cqe-alternates-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            log('Modal closed');
+        }
+    }
+    
     // Handle "Add Alternates" button click
     function handleAddAlternatesClick(event) {
         event.preventDefault();
@@ -89,8 +439,8 @@
         
         log('Add Alternates clicked for product:', productData);
         
-        // TODO: Open modal interface (Task 1.2)
-        alert(`Add Alternates clicked for: ${productData.name}\nASIN: ${productData.asin}\nQuantity: ${productData.quantity}`);
+        // Open modal interface
+        openModal(productData);
     }
     
     // Add "Add Alternates" option to dropdown menus
