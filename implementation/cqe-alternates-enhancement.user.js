@@ -48,23 +48,147 @@
     function extractProductData(rowElement) {
         try {
             const rowKey = rowElement.getAttribute('data-key');
+            log('Extracting data for row key:', rowKey);
+            
+            // Try multiple methods to get ASIN
+            let asin = '';
+            
+            // Method 1: From the main ASIN input field
+            const asinInput = document.querySelector(CQE_SELECTORS.asinInput);
+            if (asinInput && asinInput.value) {
+                asin = asinInput.value.trim();
+                log('ASIN from input field:', asin);
+            }
+            
+            // Method 2: From data attributes on the row
+            if (!asin) {
+                const dataAttrs = Array.from(rowElement.attributes)
+                    .filter(attr => attr.name.includes('asin') || attr.name.includes('product'))
+                    .map(attr => ({ name: attr.name, value: attr.value }));
+                log('Row data attributes:', dataAttrs);
+                
+                // Check for ASIN in data attributes
+                for (const attr of dataAttrs) {
+                    const extractedASIN = ASIN_VALIDATION.extract(attr.value);
+                    if (extractedASIN) {
+                        asin = extractedASIN;
+                        log('ASIN from data attribute:', attr.name, '=', extractedASIN);
+                        break;
+                    }
+                }
+            }
+            
+            // Method 3: From links or images in the row
+            if (!asin) {
+                const links = rowElement.querySelectorAll('a[href]');
+                for (const link of links) {
+                    const extractedASIN = ASIN_VALIDATION.extract(link.href);
+                    if (extractedASIN) {
+                        asin = extractedASIN;
+                        log('ASIN from link href:', extractedASIN);
+                        break;
+                    }
+                }
+            }
+            
+            // Method 4: From image src
+            if (!asin) {
+                const img = rowElement.querySelector('img[src]');
+                if (img && img.src) {
+                    const extractedASIN = ASIN_VALIDATION.extract(img.src);
+                    if (extractedASIN) {
+                        asin = extractedASIN;
+                        log('ASIN from image src:', extractedASIN);
+                    }
+                }
+            }
+            
+            // Method 5: From text content (last resort)
+            if (!asin) {
+                const textContent = rowElement.textContent;
+                const asinMatch = textContent.match(/\b[A-Z0-9]{10}\b/g);
+                if (asinMatch) {
+                    for (const match of asinMatch) {
+                        const validation = ASIN_VALIDATION.validate(match);
+                        if (validation.valid) {
+                            asin = validation.asin;
+                            log('ASIN from text content:', asin);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Get product name with multiple fallbacks
+            let productName = '';
+            const nameSelectors = [
+                '.ink_typography_1lzltdc5',
+                '.ink_typography_1lzltdc8',
+                '.ink_typography_1lzltdcb',
+                '[data-testid*="product"]',
+                'h3',
+                'h4',
+                '.product-title',
+                '.item-name'
+            ];
+            
+            for (const selector of nameSelectors) {
+                const nameElement = rowElement.querySelector(selector);
+                if (nameElement && nameElement.textContent.trim()) {
+                    productName = nameElement.textContent.trim();
+                    log('Product name from selector', selector, ':', productName);
+                    break;
+                }
+            }
+            
+            // Get quantity with multiple fallbacks
+            let quantity = '';
+            const quantitySelectors = [
+                '.product-quantity',
+                'input[type="number"]',
+                'input[id*="quantity"]',
+                '[data-testid*="quantity"]'
+            ];
+            
+            for (const selector of quantitySelectors) {
+                const qtyElement = rowElement.querySelector(selector);
+                if (qtyElement) {
+                    quantity = qtyElement.value || qtyElement.textContent.trim();
+                    if (quantity) {
+                        log('Quantity from selector', selector, ':', quantity);
+                        break;
+                    }
+                }
+            }
             
             const productData = {
                 id: rowKey,
-                asin: document.querySelector(CQE_SELECTORS.asinInput)?.value || '',
-                name: rowElement.querySelector('.ink_typography_1lzltdc5')?.textContent?.trim() || '',
+                asin: asin,
+                name: productName || 'Unknown Product',
                 image: rowElement.querySelector('img')?.src || '',
-                quantity: rowElement.querySelector('.product-quantity')?.value || '',
+                quantity: quantity || '1',
                 totalPrice: rowElement.querySelector('[data-inclusive-price]')?.getAttribute('data-inclusive-price') || '',
                 unitPrice: rowElement.querySelector('[data-inclusive-unit-price]')?.getAttribute('data-inclusive-unit-price') || '',
                 seller: rowElement.querySelector('.seller-performance-link')?.textContent?.trim() || '',
                 merchantName: rowElement.querySelector('[data-merchant-name]')?.getAttribute('data-merchant-name') || ''
             };
             
-            log('Extracted product data:', productData);
+            log('Final extracted product data:', productData);
+            
+            // Warn if critical data is missing
+            if (!productData.asin) {
+                log('WARNING: No ASIN found for product row');
+                console.warn('CQE Alternates: No ASIN detected. Row HTML:', rowElement.outerHTML.substring(0, 500) + '...');
+            }
+            
+            if (!productData.name || productData.name === 'Unknown Product') {
+                log('WARNING: No product name found');
+            }
+            
             return productData;
         } catch (error) {
             log('Error extracting product data:', error);
+            console.error('CQE Alternates: Product data extraction failed:', error);
             return null;
         }
     }
@@ -1065,10 +1189,71 @@
         const productRows = document.querySelectorAll(CQE_SELECTORS.productRows);
         log(`Found ${productRows.length} product rows`);
         
+        if (productRows.length === 0) {
+            log('No product rows found. Checking alternative selectors...');
+            
+            // Try alternative selectors
+            const alternativeSelectors = [
+                'tbody tr',
+                'tr[data-key]',
+                '.product-row',
+                '[role="row"]'
+            ];
+            
+            for (const selector of alternativeSelectors) {
+                const altRows = document.querySelectorAll(selector);
+                log(`Alternative selector "${selector}" found ${altRows.length} rows`);
+                if (altRows.length > 0) {
+                    log('Sample row HTML:', altRows[0].outerHTML.substring(0, 200) + '...');
+                }
+            }
+            
+            // Check if table exists at all
+            const table = document.querySelector(CQE_SELECTORS.productTable);
+            if (table) {
+                log('Product table found, but no rows. Table HTML:', table.outerHTML.substring(0, 300) + '...');
+            } else {
+                log('Product table not found. Checking alternative table selectors...');
+                const altTables = document.querySelectorAll('table');
+                log(`Found ${altTables.length} tables on page`);
+                altTables.forEach((table, index) => {
+                    log(`Table ${index} classes:`, table.className);
+                });
+            }
+            
+            return;
+        }
+        
         productRows.forEach((row, index) => {
+            log(`Processing row ${index}:`, row.getAttribute('data-key'));
+            
             const dropdown = row.querySelector(CQE_SELECTORS.dropdownMenus);
             if (!dropdown) {
-                log(`No dropdown found for row ${index}`);
+                log(`No dropdown found for row ${index}. Checking alternative selectors...`);
+                
+                // Try alternative dropdown selectors
+                const altDropdowns = [
+                    '.dropdown-menu',
+                    '.b-dropdown',
+                    '[role="menu"]',
+                    '.action-menu'
+                ];
+                
+                for (const selector of altDropdowns) {
+                    const altDropdown = row.querySelector(selector);
+                    if (altDropdown) {
+                        log(`Found alternative dropdown with selector "${selector}"`);
+                        break;
+                    }
+                }
+                
+                // Show what's in the last cell (where dropdown should be)
+                const cells = row.querySelectorAll('td');
+                if (cells.length > 0) {
+                    const lastCell = cells[cells.length - 1];
+                    log(`Last cell HTML for row ${index}:`, lastCell.outerHTML.substring(0, 300) + '...');
+                }
+                
                 return;
             }
             
@@ -1076,6 +1261,13 @@
             const existingButton = dropdown.querySelector('#add-alternates-option');
             if (existingButton) {
                 log(`Alternates button already exists for row ${index}`);
+                return;
+            }
+            
+            // Extract product data for this row
+            const productData = extractProductData(row);
+            if (!productData || !productData.asin) {
+                log(`Skipping row ${index} - no valid product data or ASIN`);
                 return;
             }
             
@@ -1103,9 +1295,55 @@
             // Insert as first option (before Delete)
             dropdown.insertBefore(alternatesItem, dropdown.firstChild);
             
-            log(`Added "Add Alternates" button to row ${index}`);
+            log(`Added "Add Alternates" button to row ${index} for ASIN: ${productData.asin}`);
         });
     }
+    
+    // Manual debug function - can be called from console
+    window.debugCQEAlternates = function() {
+        console.log('=== CQE Alternates Debug Info ===');
+        
+        // Check page detection
+        console.log('1. Page Detection:');
+        console.log('   Header element:', document.querySelector(CQE_SELECTORS.pageHeader));
+        console.log('   Breadcrumb element:', document.querySelector('.b-breadcrumb'));
+        console.log('   Is CQE page:', isCQEQuotePage());
+        
+        // Check table structure
+        console.log('2. Table Structure:');
+        console.log('   Product table:', document.querySelector(CQE_SELECTORS.productTable));
+        console.log('   All tables:', document.querySelectorAll('table'));
+        
+        // Check rows
+        console.log('3. Product Rows:');
+        const rows = document.querySelectorAll(CQE_SELECTORS.productRows);
+        console.log('   Product rows found:', rows.length);
+        rows.forEach((row, i) => {
+            console.log(`   Row ${i}:`, row.getAttribute('data-key'), row);
+        });
+        
+        // Check ASIN input
+        console.log('4. ASIN Input:');
+        const asinInput = document.querySelector(CQE_SELECTORS.asinInput);
+        console.log('   ASIN input element:', asinInput);
+        console.log('   ASIN input value:', asinInput?.value);
+        
+        // Check dropdowns
+        console.log('5. Dropdown Menus:');
+        const dropdowns = document.querySelectorAll(CQE_SELECTORS.dropdownMenus);
+        console.log('   Dropdown menus found:', dropdowns.length);
+        dropdowns.forEach((dropdown, i) => {
+            console.log(`   Dropdown ${i}:`, dropdown);
+        });
+        
+        // Check for products and extract data
+        console.log('6. Product Data Extraction:');
+        rows.forEach((row, i) => {
+            console.log(`   Row ${i} data:`, extractProductData(row));
+        });
+        
+        console.log('=== End Debug Info ===');
+    };
     
     // Initialize the enhancement
     function initialize() {
