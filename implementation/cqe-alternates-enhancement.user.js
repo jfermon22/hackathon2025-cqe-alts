@@ -514,61 +514,499 @@
         });
     }
     
-    // Conversation state management
-    let conversationState = {
-        step: 'WILLINGNESS_CHECK',
-        productData: null,
-        requirements: null,
-        selectedAlternates: [],
-        conversationHistory: []
-    };
-    
-    // Conversation flow definition
-    const CONVERSATION_STEPS = {
+    // Enhanced conversation flow definition with context awareness
+    const ENHANCED_CONVERSATION_STEPS = {
         WILLINGNESS_CHECK: {
-            message: "Would you be willing to accept alternate ASINs for this request? This can help you get better pricing and availability options.",
+            message: "I can help you find alternate products that might offer better pricing or availability. Would you like me to suggest alternates for this ASIN?",
+            responses: ["Yes", "No", "Maybe"],
+            nextStep: {
+                "Yes": "DETERMINE_APPROACH",
+                "No": "OFFER_MANUAL_ONLY", 
+                "Maybe": "EXPLAIN_BENEFITS"
+            }
+        },
+        
+        EXPLAIN_BENEFITS: {
+            message: "Here's how alternates can help: suppliers often provide better pricing for equivalent products, you get more options if your primary choice is out of stock, and you can compare features across similar items. Would you like to proceed?",
             responses: ["Yes", "No"],
             nextStep: {
-                "Yes": "REQUIREMENTS_GATHERING",
-                "No": "END_CONVERSATION"
+                "Yes": "DETERMINE_APPROACH",
+                "No": "OFFER_MANUAL_ONLY"
+            }
+        },
+        
+        DETERMINE_APPROACH: {
+            message: "I can help in two ways: 1) Ask you questions to understand your needs and suggest alternates, or 2) Let you add specific ASINs you already have in mind. Which would you prefer?",
+            responses: ["Ask me questions", "I'll add specific ASINs", "Both"],
+            nextStep: {
+                "Ask me questions": "REQUIREMENTS_GATHERING",
+                "I'll add specific ASINs": "MANUAL_ADDITION_ONLY",
+                "Both": "REQUIREMENTS_GATHERING"
             }
         },
         
         REQUIREMENTS_GATHERING: {
-            message: "Great! What are the key attributes a suitable alternate needs to meet to be suitable for you? For example: specific technical specifications, price range, brand preferences, or use case requirements.",
-            type: "free_text",
+            message: "Great! To find the best alternates, I need to understand what's important to you. Please tell me about:",
+            subQuestions: [
+                "What will you use this product for?",
+                "Are there specific features that are must-haves?", 
+                "Do you have a preferred price range?",
+                "Any brand preferences or brands to avoid?",
+                "Are there technical specifications that matter?"
+            ],
+            type: "guided_questions",
             nextStep: "PROCESS_REQUIREMENTS"
         },
         
         PROCESS_REQUIREMENTS: {
-            message: "Thank you for that information. Let me process your requirements and search for suitable alternates...",
+            message: "Thank you for that detailed information. Let me analyze your requirements and search for suitable alternates...",
             nextStep: "PRESENT_ALTERNATES"
         },
         
         PRESENT_ALTERNATES: {
-            message: "Based on your requirements, I found these potential alternates. Please select the ones that would work for you:",
-            type: "selection",
-            nextStep: "MANUAL_ADDITION"
+            message: "Based on your requirements, I found several potential alternates. I'll show you the most relevant ones:",
+            type: "selection_with_reasoning",
+            nextStep: "REFINE_SELECTION"
+        },
+        
+        REFINE_SELECTION: {
+            message: "Would you like me to find more alternates, or are you satisfied with these options?",
+            responses: ["Find more", "These are good", "Show me different types"],
+            nextStep: {
+                "Find more": "EXPAND_SEARCH",
+                "These are good": "MANUAL_ADDITION",
+                "Show me different types": "ALTERNATIVE_CATEGORIES"
+            }
+        },
+        
+        EXPAND_SEARCH: {
+            message: "I'll search for additional alternates with broader criteria...",
+            nextStep: "PRESENT_ALTERNATES"
+        },
+        
+        ALTERNATIVE_CATEGORIES: {
+            message: "Let me show you alternates from different categories or with different approaches to solving your need...",
+            nextStep: "PRESENT_ALTERNATES"
         },
         
         MANUAL_ADDITION: {
-            message: "You can also add specific ASINs manually if you have alternates in mind:",
+            message: "You can also add any specific ASINs you have in mind using the manual input below:",
             type: "manual_input",
             nextStep: "SUMMARY_GENERATION"
         },
         
-        SUMMARY_GENERATION: {
-            message: "I'll now create a summary of your requirements to share with suppliers. This will help them understand what you're looking for.",
+        MANUAL_ADDITION_ONLY: {
+            message: "Perfect! You can add specific ASINs using the input below. I'll validate each one and help organize your list:",
+            type: "manual_input_focused",
+            nextStep: "SUMMARY_GENERATION"
+        },
+        
+        OFFER_MANUAL_ONLY: {
+            message: "No problem! If you change your mind, you can still add specific alternate ASINs manually using the input below:",
+            type: "manual_only",
             nextStep: "END_CONVERSATION"
         },
         
+        SUMMARY_GENERATION: {
+            message: "Let me create a summary of your alternate preferences to share with suppliers...",
+            nextStep: "PRESENT_SUMMARY"
+        },
+        
+        PRESENT_SUMMARY: {
+            message: "Here's what I'll share with suppliers about your alternate preferences:",
+            type: "summary_display",
+            nextStep: "CONFIRM_SUBMISSION"
+        },
+        
+        CONFIRM_SUBMISSION: {
+            message: "Does this summary look good? I'll include it with your quote request to help suppliers provide better options.",
+            responses: ["Yes, looks good", "Let me modify something", "Start over"],
+            nextStep: {
+                "Yes, looks good": "END_CONVERSATION",
+                "Let me modify something": "MODIFY_SUMMARY",
+                "Start over": "WILLINGNESS_CHECK"
+            }
+        },
+        
+        MODIFY_SUMMARY: {
+            message: "What would you like to change about the summary?",
+            type: "free_text",
+            nextStep: "SUMMARY_GENERATION"
+        },
+        
         END_CONVERSATION: {
-            message: "Thank you! Your alternate preferences have been recorded.",
+            message: "Perfect! Your alternate preferences have been recorded and will be included in your quote request.",
             nextStep: null
         }
     };
     
-    // Add message to chat
+    // Enhanced conversation state with more detailed tracking
+    let enhancedConversationState = {
+        step: 'WILLINGNESS_CHECK',
+        productData: null,
+        approach: null, // 'guided', 'manual', 'both'
+        requirements: {
+            useCase: '',
+            mustHaveFeatures: [],
+            priceRange: null,
+            brandPreferences: [],
+            brandExclusions: [],
+            technicalSpecs: [],
+            keywords: []
+        },
+        currentQuestion: 0,
+        selectedAlternates: [],
+        suggestedAlternates: [],
+        conversationHistory: [],
+        userPreferences: {
+            responseStyle: 'detailed', // 'brief', 'detailed'
+            searchDepth: 'standard' // 'quick', 'standard', 'thorough'
+        }
+    };
+    
+    // Enhanced conversation processing with context awareness
+    function processEnhancedUserInput(userInput) {
+        const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
+        
+        if (!currentStep) {
+            log('Error: Invalid conversation step:', enhancedConversationState.step);
+            return;
+        }
+        
+        // Add user message to chat
+        addChatMessage(userInput, true);
+        
+        // Process based on step type and context
+        switch (enhancedConversationState.step) {
+            case 'WILLINGNESS_CHECK':
+                handleEnhancedWillingnessResponse(userInput);
+                break;
+                
+            case 'EXPLAIN_BENEFITS':
+                handleBenefitsResponse(userInput);
+                break;
+                
+            case 'DETERMINE_APPROACH':
+                handleApproachSelection(userInput);
+                break;
+                
+            case 'REQUIREMENTS_GATHERING':
+                handleGuidedRequirements(userInput);
+                break;
+                
+            case 'REFINE_SELECTION':
+                handleSelectionRefinement(userInput);
+                break;
+                
+            case 'CONFIRM_SUBMISSION':
+                handleSubmissionConfirmation(userInput);
+                break;
+                
+            case 'MODIFY_SUMMARY':
+                handleSummaryModification(userInput);
+                break;
+                
+            default:
+                // For other steps, use standard processing
+                advanceEnhancedConversation();
+                break;
+        }
+    }
+    
+    // Handle enhanced willingness check with more nuanced responses
+    function handleEnhancedWillingnessResponse(response) {
+        const normalizedResponse = response.toLowerCase().trim();
+        
+        if (normalizedResponse.includes('yes') || normalizedResponse.includes('sure') || normalizedResponse.includes('okay')) {
+            enhancedConversationState.step = 'DETERMINE_APPROACH';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.DETERMINE_APPROACH.message);
+        } else if (normalizedResponse.includes('no') || normalizedResponse.includes('not interested')) {
+            enhancedConversationState.step = 'OFFER_MANUAL_ONLY';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.OFFER_MANUAL_ONLY.message);
+            showManualASINSection();
+        } else if (normalizedResponse.includes('maybe') || normalizedResponse.includes('not sure') || normalizedResponse.includes('tell me more')) {
+            enhancedConversationState.step = 'EXPLAIN_BENEFITS';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.EXPLAIN_BENEFITS.message);
+        } else {
+            // Ask for clarification with more options
+            addChatMessage("I'd like to help you find the best alternates. You can say 'yes' if you'd like suggestions, 'no' if you prefer to add specific ASINs yourself, or 'maybe' if you'd like to know more about how alternates can help.");
+        }
+    }
+    
+    // Handle benefits explanation response
+    function handleBenefitsResponse(response) {
+        const normalizedResponse = response.toLowerCase().trim();
+        
+        if (normalizedResponse.includes('yes') || normalizedResponse.includes('proceed') || normalizedResponse.includes('okay')) {
+            enhancedConversationState.step = 'DETERMINE_APPROACH';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.DETERMINE_APPROACH.message);
+        } else {
+            enhancedConversationState.step = 'OFFER_MANUAL_ONLY';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.OFFER_MANUAL_ONLY.message);
+            showManualASINSection();
+        }
+    }
+    
+    // Handle approach selection (guided questions vs manual input)
+    function handleApproachSelection(response) {
+        const normalizedResponse = response.toLowerCase().trim();
+        
+        if (normalizedResponse.includes('question') || normalizedResponse.includes('ask me')) {
+            enhancedConversationState.approach = 'guided';
+            enhancedConversationState.step = 'REQUIREMENTS_GATHERING';
+            startGuidedRequirements();
+        } else if (normalizedResponse.includes('specific') || normalizedResponse.includes('add') || normalizedResponse.includes('asin')) {
+            enhancedConversationState.approach = 'manual';
+            enhancedConversationState.step = 'MANUAL_ADDITION_ONLY';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.MANUAL_ADDITION_ONLY.message);
+            showManualASINSection();
+        } else if (normalizedResponse.includes('both')) {
+            enhancedConversationState.approach = 'both';
+            enhancedConversationState.step = 'REQUIREMENTS_GATHERING';
+            startGuidedRequirements();
+        } else {
+            addChatMessage("Please choose one: 'Ask me questions' for guided suggestions, 'I'll add specific ASINs' for manual input, or 'Both' for a combination approach.");
+        }
+    }
+    
+    // Start guided requirements gathering
+    function startGuidedRequirements() {
+        enhancedConversationState.currentQuestion = 0;
+        const questions = ENHANCED_CONVERSATION_STEPS.REQUIREMENTS_GATHERING.subQuestions;
+        
+        addChatMessage(`${ENHANCED_CONVERSATION_STEPS.REQUIREMENTS_GATHERING.message}\n\n**Question 1 of ${questions.length}:** ${questions[0]}`);
+    }
+    
+    // Handle guided requirements gathering
+    function handleGuidedRequirements(response) {
+        const questions = ENHANCED_CONVERSATION_STEPS.REQUIREMENTS_GATHERING.subQuestions;
+        const currentQ = enhancedConversationState.currentQuestion;
+        
+        // Store the response based on question type
+        storeRequirementResponse(currentQ, response);
+        
+        // Move to next question or finish
+        enhancedConversationState.currentQuestion++;
+        
+        if (enhancedConversationState.currentQuestion < questions.length) {
+            const nextQ = enhancedConversationState.currentQuestion;
+            addChatMessage(`**Question ${nextQ + 1} of ${questions.length}:** ${questions[nextQ]}`);
+        } else {
+            // All questions answered, process requirements
+            enhancedConversationState.step = 'PROCESS_REQUIREMENTS';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.PROCESS_REQUIREMENTS.message);
+            
+            setTimeout(() => {
+                processEnhancedRequirements();
+            }, 2000);
+        }
+    }
+    
+    // Store requirement responses in structured format
+    function storeRequirementResponse(questionIndex, response) {
+        const sanitizedResponse = INPUT_HANDLERS.sanitize(response);
+        
+        switch (questionIndex) {
+            case 0: // Use case
+                enhancedConversationState.requirements.useCase = sanitizedResponse;
+                break;
+            case 1: // Must-have features
+                enhancedConversationState.requirements.mustHaveFeatures = extractFeatures(sanitizedResponse);
+                break;
+            case 2: // Price range
+                enhancedConversationState.requirements.priceRange = extractPriceRange(sanitizedResponse);
+                break;
+            case 3: // Brand preferences
+                const brands = extractBrands(sanitizedResponse);
+                enhancedConversationState.requirements.brandPreferences = brands.preferred;
+                enhancedConversationState.requirements.brandExclusions = brands.excluded;
+                break;
+            case 4: // Technical specs
+                enhancedConversationState.requirements.technicalSpecs = extractTechnicalSpecs(sanitizedResponse);
+                break;
+        }
+        
+        // Extract keywords from all responses
+        const keywords = INPUT_HANDLERS.extractKeywords(sanitizedResponse);
+        enhancedConversationState.requirements.keywords = [
+            ...enhancedConversationState.requirements.keywords,
+            ...keywords
+        ].filter((keyword, index, self) => self.indexOf(keyword) === index); // Remove duplicates
+        
+        log(`Stored requirement ${questionIndex}:`, sanitizedResponse);
+    }
+    
+    // Extract features from user response
+    function extractFeatures(response) {
+        const features = [];
+        const text = response.toLowerCase();
+        
+        // Common feature keywords
+        const featureKeywords = [
+            'waterproof', 'wireless', 'bluetooth', 'usb', 'rechargeable', 'portable',
+            'durable', 'lightweight', 'compact', 'adjustable', 'automatic', 'manual',
+            'digital', 'analog', 'led', 'lcd', 'touchscreen', 'voice control'
+        ];
+        
+        featureKeywords.forEach(keyword => {
+            if (text.includes(keyword)) {
+                features.push(keyword);
+            }
+        });
+        
+        return features;
+    }
+    
+    // Extract price range from user response
+    function extractPriceRange(response) {
+        const text = response.toLowerCase();
+        const priceMatches = text.match(/\$?(\d+(?:\.\d{2})?)/g);
+        
+        if (priceMatches && priceMatches.length >= 2) {
+            const prices = priceMatches.map(p => parseFloat(p.replace('$', '')));
+            return {
+                min: Math.min(...prices),
+                max: Math.max(...prices)
+            };
+        } else if (priceMatches && priceMatches.length === 1) {
+            const price = parseFloat(priceMatches[0].replace('$', ''));
+            if (text.includes('under') || text.includes('less than') || text.includes('below')) {
+                return { min: 0, max: price };
+            } else if (text.includes('over') || text.includes('more than') || text.includes('above')) {
+                return { min: price, max: null };
+            }
+        }
+        
+        return null;
+    }
+    
+    // Extract brand information from user response
+    function extractBrands(response) {
+        const text = response.toLowerCase();
+        const preferred = [];
+        const excluded = [];
+        
+        // Common brand extraction patterns
+        const brandPatterns = [
+            /prefer\s+([a-z]+)/g,
+            /like\s+([a-z]+)/g,
+            /avoid\s+([a-z]+)/g,
+            /not\s+([a-z]+)/g
+        ];
+        
+        // This is a simplified version - in a real implementation,
+        // you'd have a comprehensive brand database
+        const commonBrands = ['3m', 'amazon', 'sony', 'apple', 'samsung', 'lg', 'hp', 'dell'];
+        
+        commonBrands.forEach(brand => {
+            if (text.includes(brand)) {
+                if (text.includes('avoid') || text.includes('not ' + brand) || text.includes('except ' + brand)) {
+                    excluded.push(brand);
+                } else {
+                    preferred.push(brand);
+                }
+            }
+        });
+        
+        return { preferred, excluded };
+    }
+    
+    // Extract technical specifications
+    function extractTechnicalSpecs(response) {
+        const specs = [];
+        const text = response.toLowerCase();
+        
+        // Common spec patterns
+        const specPatterns = [
+            /(\d+)\s*(gb|mb|tb)/g, // Storage
+            /(\d+)\s*(mhz|ghz)/g, // Frequency
+            /(\d+)\s*(inch|"|ft|cm|mm)/g, // Dimensions
+            /(\d+)\s*(watt|w|volt|v|amp|a)/g, // Power
+            /(\d+)\s*(dpi|ppi)/g // Resolution
+        ];
+        
+        specPatterns.forEach(pattern => {
+            const matches = text.match(pattern);
+            if (matches) {
+                specs.push(...matches);
+            }
+        });
+        
+        return specs;
+    }
+    
+    // Process enhanced requirements with better analysis
+    function processEnhancedRequirements() {
+        log('Processing enhanced requirements:', enhancedConversationState.requirements);
+        
+        // Generate summary of requirements
+        const reqSummary = generateRequirementsSummary();
+        addChatMessage(`Based on your answers, I understand you're looking for:\n\n${reqSummary}\n\nLet me search for suitable alternates...`);
+        
+        // TODO: This will integrate with LLM service in Phase 3
+        // For now, simulate finding alternates
+        setTimeout(() => {
+            enhancedConversationState.step = 'PRESENT_ALTERNATES';
+            addChatMessage("I found several potential alternates based on your requirements. However, the product search integration is not yet implemented. For now, you can add specific ASINs manually below.");
+            
+            if (enhancedConversationState.approach === 'both' || enhancedConversationState.approach === 'guided') {
+                showManualASINSection();
+                showAlternatesSelection();
+            }
+        }, 2000);
+    }
+    
+    // Generate human-readable requirements summary
+    function generateRequirementsSummary() {
+        const req = enhancedConversationState.requirements;
+        const summary = [];
+        
+        if (req.useCase) {
+            summary.push(`• **Use case**: ${req.useCase}`);
+        }
+        
+        if (req.mustHaveFeatures.length > 0) {
+            summary.push(`• **Must-have features**: ${req.mustHaveFeatures.join(', ')}`);
+        }
+        
+        if (req.priceRange) {
+            if (req.priceRange.max && req.priceRange.min > 0) {
+                summary.push(`• **Price range**: $${req.priceRange.min} - $${req.priceRange.max}`);
+            } else if (req.priceRange.max) {
+                summary.push(`• **Price limit**: Under $${req.priceRange.max}`);
+            } else if (req.priceRange.min) {
+                summary.push(`• **Minimum price**: Over $${req.priceRange.min}`);
+            }
+        }
+        
+        if (req.brandPreferences.length > 0) {
+            summary.push(`• **Preferred brands**: ${req.brandPreferences.join(', ')}`);
+        }
+        
+        if (req.brandExclusions.length > 0) {
+            summary.push(`• **Brands to avoid**: ${req.brandExclusions.join(', ')}`);
+        }
+        
+        if (req.technicalSpecs.length > 0) {
+            summary.push(`• **Technical requirements**: ${req.technicalSpecs.join(', ')}`);
+        }
+        
+        return summary.length > 0 ? summary.join('\n') : 'General alternate products that serve a similar purpose';
+    }
+    
+    // Advance conversation to next step
+    function advanceEnhancedConversation() {
+        const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
+        if (currentStep && currentStep.nextStep) {
+            enhancedConversationState.step = currentStep.nextStep;
+            const nextStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
+            if (nextStep && nextStep.message) {
+                addChatMessage(nextStep.message);
+            }
+        }
+    }
+    
+    // Add message to chat (updated for enhanced state)
     function addChatMessage(message, isUser = false) {
         const messagesContainer = document.querySelector('#cqe-chat-messages');
         if (!messagesContainer) return;
@@ -584,64 +1022,262 @@
         // Scroll to bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
         
-        // Store in conversation history
-        conversationState.conversationHistory.push({
+        // Store in enhanced conversation history
+        enhancedConversationState.conversationHistory.push({
             message: message,
             isUser: isUser,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            step: enhancedConversationState.step,
+            questionIndex: enhancedConversationState.currentQuestion
         });
         
         log(`Chat message added (${sender}):`, message);
     }
     
-    // Process user input based on current conversation step
+    // Process user input based on current conversation step (updated for enhanced system)
     function processUserInput(userInput) {
-        const currentStep = CONVERSATION_STEPS[conversationState.step];
-        
-        if (!currentStep) {
-            log('Error: Invalid conversation step:', conversationState.step);
-            return;
-        }
-        
-        // Add user message to chat
-        addChatMessage(userInput, true);
-        
-        // Process based on step type
-        switch (conversationState.step) {
-            case 'WILLINGNESS_CHECK':
-                handleWillingnessResponse(userInput);
-                break;
-                
-            case 'REQUIREMENTS_GATHERING':
-                handleRequirementsInput(userInput);
-                break;
-                
-            case 'PROCESS_REQUIREMENTS':
-                // This step is automatic, shouldn't receive user input
-                break;
-                
-            default:
-                // For other steps, just advance to next step
-                advanceConversation();
-                break;
+        // Use enhanced conversation processing
+        processEnhancedUserInput(userInput);
+    }
+    
+    // Handle willingness check response (legacy - now uses enhanced version)
+    function handleWillingnessResponse(response) {
+        handleEnhancedWillingnessResponse(response);
+    }
+    
+    // Handle requirements gathering input (updated for enhanced system)
+    function handleRequirementsInput(requirements) {
+        if (enhancedConversationState.step === 'REQUIREMENTS_GATHERING') {
+            // Use guided requirements if in enhanced mode
+            handleGuidedRequirements(requirements);
+        } else {
+            // Fallback to original simple requirements handling
+            const validation = INPUT_HANDLERS.validateRequirements(requirements);
+            
+            if (!validation.valid) {
+                addChatMessage(validation.error, false);
+                return;
+            }
+            
+            const sanitizedRequirements = validation.requirements;
+            const keywords = INPUT_HANDLERS.extractKeywords(sanitizedRequirements);
+            
+            enhancedConversationState.requirements = {
+                text: sanitizedRequirements,
+                keywords: keywords,
+                processedAt: new Date().toISOString()
+            };
+            
+            enhancedConversationState.step = 'PROCESS_REQUIREMENTS';
+            
+            // Provide feedback on extracted keywords
+            let keywordFeedback = '';
+            if (keywords.length > 0) {
+                keywordFeedback = ` I noticed you're particularly interested in: ${keywords.join(', ')}.`;
+            }
+            
+            addChatMessage(`Thank you for that information.${keywordFeedback} Let me process your requirements and search for suitable alternates...`);
+            
+            // Simulate processing delay
+            setTimeout(() => {
+                processRequirements(enhancedConversationState.requirements);
+            }, 2000);
         }
     }
     
-    // Handle willingness check response
-    function handleWillingnessResponse(response) {
-        const normalizedResponse = response.toLowerCase().trim();
+    // Process requirements (updated to work with enhanced state)
+    function processRequirements(requirements) {
+        log('Processing requirements:', requirements);
         
-        if (normalizedResponse.includes('yes') || normalizedResponse.includes('y')) {
-            conversationState.step = 'REQUIREMENTS_GATHERING';
-            addChatMessage(CONVERSATION_STEPS.REQUIREMENTS_GATHERING.message);
-        } else if (normalizedResponse.includes('no') || normalizedResponse.includes('n')) {
-            conversationState.step = 'END_CONVERSATION';
-            addChatMessage("I understand. You can still manually add specific ASINs if you change your mind.");
-            showManualASINSection();
-        } else {
-            // Ask for clarification
-            addChatMessage("I didn't quite understand. Could you please answer with 'Yes' or 'No'?");
+        // TODO: Integrate with LLM service in Phase 3
+        // For now, simulate finding alternates
+        enhancedConversationState.step = 'PRESENT_ALTERNATES';
+        
+        addChatMessage("I found several potential alternates based on your requirements. However, the product search integration is not yet implemented. For now, you can add specific ASINs manually below.");
+        
+        showManualASINSection();
+        showAlternatesSelection();
+    }
+    
+    // Reset conversation state (updated for enhanced system)
+    function resetConversationState(productData) {
+        enhancedConversationState = {
+            step: 'WILLINGNESS_CHECK',
+            productData: productData,
+            approach: null,
+            requirements: {
+                useCase: '',
+                mustHaveFeatures: [],
+                priceRange: null,
+                brandPreferences: [],
+                brandExclusions: [],
+                technicalSpecs: [],
+                keywords: []
+            },
+            currentQuestion: 0,
+            selectedAlternates: [],
+            suggestedAlternates: [],
+            conversationHistory: [],
+            userPreferences: {
+                responseStyle: 'detailed',
+                searchDepth: 'standard'
+            }
+        };
+        
+        // Clear chat messages except initial one
+        const messagesContainer = document.querySelector('#cqe-chat-messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = `
+                <div class="chat-message assistant">
+                    <strong>Assistant:</strong> ${ENHANCED_CONVERSATION_STEPS.WILLINGNESS_CHECK.message}
+                </div>
+            `;
         }
+        
+        // Hide sections
+        const manualSection = document.querySelector('#cqe-manual-asin-section');
+        const alternatesSection = document.querySelector('#cqe-alternates-selection');
+        if (manualSection) manualSection.style.display = 'none';
+        if (alternatesSection) alternatesSection.style.display = 'none';
+        
+        // Reset confirm button
+        updateConfirmButton();
+        
+        log('Enhanced conversation state reset for product:', productData);
+    }
+    
+    // Update manual ASIN handling to work with enhanced state
+    function handleManualASINAdd() {
+        const asinInput = document.querySelector('#cqe-manual-asin');
+        if (!asinInput) return;
+        
+        const rawInput = asinInput.value.trim();
+        
+        if (!rawInput) {
+            showInputError(asinInput, "Please enter an ASIN or Amazon URL.");
+            return;
+        }
+        
+        // Try to extract ASIN from input
+        const extractedASIN = ASIN_VALIDATION.extract(rawInput);
+        
+        if (!extractedASIN) {
+            showInputError(asinInput, "Invalid ASIN format. Please enter a valid 10-character ASIN or Amazon product URL.");
+            return;
+        }
+        
+        // Check if already added
+        if (enhancedConversationState.selectedAlternates.some(alt => alt.asin === extractedASIN)) {
+            showInputError(asinInput, "This ASIN has already been added.");
+            return;
+        }
+        
+        // Clear any previous errors
+        clearInputError(asinInput);
+        
+        // Add to selected alternates
+        const alternate = {
+            asin: extractedASIN,
+            source: 'manual',
+            name: `Manual Entry: ${extractedASIN}`,
+            selected: true,
+            addedAt: new Date().toISOString()
+        };
+        
+        enhancedConversationState.selectedAlternates.push(alternate);
+        
+        // Update UI
+        updateManualASINsList();
+        updateConfirmButton();
+        
+        // Clear input
+        asinInput.value = '';
+        
+        addChatMessage(`Added ASIN ${extractedASIN} to your alternates list.`, false);
+        log('Manual ASIN added:', alternate);
+    }
+    
+    // Update manual ASINs list display (updated for enhanced state)
+    function updateManualASINsList() {
+        const listContainer = document.querySelector('#cqe-manual-asins-list');
+        if (!listContainer) return;
+        
+        const manualASINs = enhancedConversationState.selectedAlternates.filter(alt => alt.source === 'manual');
+        
+        if (manualASINs.length === 0) {
+            listContainer.innerHTML = '';
+            return;
+        }
+        
+        const listHtml = manualASINs.map(alt => `
+            <div class="manual-asin-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: #f8f9fa; margin: 0.25rem 0; border-radius: 4px;">
+                <span><strong>${alt.asin}</strong></span>
+                <button class="remove-asin-btn b-button b-outline" data-asin="${alt.asin}" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Remove</button>
+            </div>
+        `).join('');
+        
+        listContainer.innerHTML = listHtml;
+        
+        // Add remove handlers
+        listContainer.querySelectorAll('.remove-asin-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const asinToRemove = e.target.getAttribute('data-asin');
+                removeManualASIN(asinToRemove);
+            });
+        });
+    }
+    
+    // Remove manual ASIN (updated for enhanced state)
+    function removeManualASIN(asin) {
+        enhancedConversationState.selectedAlternates = enhancedConversationState.selectedAlternates.filter(alt => alt.asin !== asin);
+        updateManualASINsList();
+        updateConfirmButton();
+        addChatMessage(`Removed ASIN ${asin} from your alternates list.`, false);
+        log('Manual ASIN removed:', asin);
+    }
+    
+    // Update confirm button state (updated for enhanced state)
+    function updateConfirmButton() {
+        const confirmBtn = document.querySelector('#cqe-confirm-alternates');
+        if (!confirmBtn) return;
+        
+        const hasAlternates = enhancedConversationState.selectedAlternates.length > 0;
+        confirmBtn.disabled = !hasAlternates;
+        
+        if (hasAlternates) {
+            confirmBtn.textContent = `Add ${enhancedConversationState.selectedAlternates.length} Alternate${enhancedConversationState.selectedAlternates.length > 1 ? 's' : ''}`;
+        } else {
+            confirmBtn.textContent = 'Add Selected Alternates';
+        }
+    }
+    
+    // Handle confirm alternates button (updated for enhanced state)
+    function handleConfirmAlternates() {
+        if (enhancedConversationState.selectedAlternates.length === 0) {
+            addChatMessage("No alternates selected. Please add some ASINs first.", false);
+            return;
+        }
+        
+        log('Confirming alternates:', enhancedConversationState.selectedAlternates);
+        
+        // Generate summary if we have requirements
+        let summaryMessage = `Great! I've recorded ${enhancedConversationState.selectedAlternates.length} alternate ASIN${enhancedConversationState.selectedAlternates.length > 1 ? 's' : ''} for your request.`;
+        
+        if (enhancedConversationState.requirements.useCase || enhancedConversationState.requirements.keywords.length > 0) {
+            const reqSummary = generateRequirementsSummary();
+            if (reqSummary !== 'General alternate products that serve a similar purpose') {
+                summaryMessage += `\n\nYour requirements summary:\n${reqSummary}`;
+            }
+        }
+        
+        summaryMessage += "\n\nThis information will be shared with suppliers to help them provide better quotes.";
+        
+        addChatMessage(summaryMessage, false);
+        
+        // Close modal after short delay
+        setTimeout(() => {
+            closeModal();
+        }, 3000);
     }
     
     // Handle requirements gathering input
