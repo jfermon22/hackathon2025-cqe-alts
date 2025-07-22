@@ -664,8 +664,320 @@
         }
     };
     
-    // Enhanced conversation processing with context awareness
-    function processEnhancedUserInput(userInput) {
+    // Context-aware response generation system
+    const CONTEXT_AWARE_RESPONSES = {
+        // Product category detection patterns
+        PRODUCT_CATEGORIES: {
+            'electronics': ['electronic', 'device', 'gadget', 'tech', 'digital', 'smart', 'wireless', 'bluetooth'],
+            'office_supplies': ['tape', 'paper', 'pen', 'stapler', 'folder', 'binder', 'office', 'desk'],
+            'tools': ['tool', 'drill', 'hammer', 'wrench', 'screwdriver', 'saw', 'hardware'],
+            'home_garden': ['garden', 'plant', 'seed', 'fertilizer', 'hose', 'pot', 'outdoor'],
+            'clothing': ['shirt', 'pants', 'dress', 'shoe', 'jacket', 'clothing', 'apparel'],
+            'books': ['book', 'novel', 'textbook', 'manual', 'guide', 'reference'],
+            'health_beauty': ['cream', 'lotion', 'shampoo', 'vitamin', 'supplement', 'cosmetic'],
+            'automotive': ['car', 'auto', 'vehicle', 'tire', 'oil', 'filter', 'brake'],
+            'sports': ['sport', 'fitness', 'exercise', 'gym', 'athletic', 'outdoor', 'recreation']
+        },
+        
+        // Context-specific question templates
+        CONTEXTUAL_QUESTIONS: {
+            'electronics': {
+                useCase: "What will you primarily use this electronic device for? (e.g., work, entertainment, specific tasks)",
+                features: "Are there specific technical features that are essential? (e.g., battery life, connectivity, performance specs)",
+                compatibility: "Do you need it to be compatible with any existing devices or systems?"
+            },
+            'office_supplies': {
+                useCase: "What's the intended use for this office supply? (e.g., daily office work, special projects, presentations)",
+                features: "Are there specific qualities that matter most? (e.g., durability, adhesion strength, paper quality)",
+                quantity: "Will you be using this frequently or for high-volume applications?"
+            },
+            'tools': {
+                useCase: "What type of projects will you use this tool for? (e.g., professional work, DIY, repairs)",
+                features: "What performance characteristics are most important? (e.g., power, precision, durability)",
+                experience: "What's your experience level with similar tools? (affects complexity recommendations)"
+            },
+            'default': {
+                useCase: "What will you use this product for?",
+                features: "What features or qualities are most important to you?",
+                preferences: "Do you have any specific preferences or requirements?"
+            }
+        },
+        
+        // Response templates based on context
+        RESPONSE_TEMPLATES: {
+            willingness: {
+                'electronics': "I can help you find alternate electronic devices that might offer better value, newer features, or improved compatibility. Technology moves fast, so there might be newer models or different brands that better suit your needs.",
+                'office_supplies': "Office supplies often have great alternatives with similar functionality but better pricing or bulk options. I can help you find equivalent products that work just as well for your office needs.",
+                'tools': "Tools are an area where alternates can offer significant value - sometimes different brands provide the same functionality at better price points, or newer models with improved features.",
+                'default': "I can help you find alternate products that might offer better pricing, availability, or features that better match your specific needs."
+            },
+            
+            benefits: {
+                'electronics': "For electronics, alternates can help you: get newer technology at similar prices, find products with better warranty coverage, discover brands with superior customer support, or find devices with features more suited to your specific use case.",
+                'office_supplies': "Office supply alternates often provide: bulk pricing advantages, better quality materials, eco-friendly options, or products specifically designed for your type of work environment.",
+                'tools': "Tool alternates can offer: professional-grade quality at consumer prices, better ergonomics for your specific tasks, improved safety features, or specialized versions for your particular applications.",
+                'default': "Alternates can provide better value, improved features, higher quality, or better availability than your original choice."
+            }
+        }
+    };
+    
+    // Detect product category from ASIN and product name
+    function detectProductCategory(productData) {
+        if (!productData || !productData.name) return 'default';
+        
+        const productText = productData.name.toLowerCase();
+        
+        for (const [category, keywords] of Object.entries(CONTEXT_AWARE_RESPONSES.PRODUCT_CATEGORIES)) {
+            for (const keyword of keywords) {
+                if (productText.includes(keyword)) {
+                    log(`Detected product category: ${category} (keyword: ${keyword})`);
+                    return category;
+                }
+            }
+        }
+        
+        log('No specific category detected, using default');
+        return 'default';
+    }
+    
+    // Generate context-aware response based on product and conversation state
+    function generateContextAwareResponse(responseType, productData = null) {
+        const product = productData || enhancedConversationState.productData;
+        const category = detectProductCategory(product);
+        
+        const templates = CONTEXT_AWARE_RESPONSES.RESPONSE_TEMPLATES[responseType];
+        if (!templates) {
+            log(`No templates found for response type: ${responseType}`);
+            return null;
+        }
+        
+        const response = templates[category] || templates['default'];
+        
+        // Personalize the response with product information
+        if (product && product.name) {
+            return response.replace(/this product/g, `this ${product.name.toLowerCase()}`);
+        }
+        
+        return response;
+    }
+    
+    // Generate contextual questions based on product category
+    function generateContextualQuestions(productData) {
+        const category = detectProductCategory(productData);
+        const questions = CONTEXT_AWARE_RESPONSES.CONTEXTUAL_QUESTIONS[category] || 
+                         CONTEXT_AWARE_RESPONSES.CONTEXTUAL_QUESTIONS['default'];
+        
+        // Convert questions object to array with context
+        const contextualQuestions = [];
+        
+        if (questions.useCase) {
+            contextualQuestions.push(questions.useCase);
+        }
+        
+        if (questions.features) {
+            contextualQuestions.push(questions.features);
+        }
+        
+        if (questions.compatibility) {
+            contextualQuestions.push(questions.compatibility);
+        }
+        
+        if (questions.quantity) {
+            contextualQuestions.push(questions.quantity);
+        }
+        
+        if (questions.experience) {
+            contextualQuestions.push(questions.experience);
+        }
+        
+        if (questions.preferences) {
+            contextualQuestions.push(questions.preferences);
+        }
+        
+        // Add price question for all categories
+        contextualQuestions.push("What's your target price range or budget for alternates?");
+        
+        // Add brand question for all categories
+        contextualQuestions.push("Are there any brands you prefer or want to avoid?");
+        
+        log(`Generated ${contextualQuestions.length} contextual questions for category: ${category}`);
+        return contextualQuestions;
+    }
+    
+    // Enhanced willingness response with context awareness
+    function handleEnhancedWillingnessResponse(response) {
+        const normalizedResponse = response.toLowerCase().trim();
+        
+        if (normalizedResponse.includes('yes') || normalizedResponse.includes('sure') || normalizedResponse.includes('okay')) {
+            enhancedConversationState.step = 'DETERMINE_APPROACH';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.DETERMINE_APPROACH.message);
+        } else if (normalizedResponse.includes('no') || normalizedResponse.includes('not interested')) {
+            enhancedConversationState.step = 'OFFER_MANUAL_ONLY';
+            addChatMessage(ENHANCED_CONVERSATION_STEPS.OFFER_MANUAL_ONLY.message);
+            showManualASINSection();
+        } else if (normalizedResponse.includes('maybe') || normalizedResponse.includes('not sure') || normalizedResponse.includes('tell me more')) {
+            enhancedConversationState.step = 'EXPLAIN_BENEFITS';
+            
+            // Use context-aware benefits explanation
+            const contextualBenefits = generateContextAwareResponse('benefits');
+            const message = contextualBenefits || ENHANCED_CONVERSATION_STEPS.EXPLAIN_BENEFITS.message;
+            
+            addChatMessage(message);
+        } else {
+            // Use context-aware clarification
+            const contextualWillingness = generateContextAwareResponse('willingness');
+            const clarification = contextualWillingness ? 
+                `${contextualWillingness} Would you like me to help find alternates?` :
+                "I'd like to help you find the best alternates. You can say 'yes' if you'd like suggestions, 'no' if you prefer to add specific ASINs yourself, or 'maybe' if you'd like to know more about how alternates can help.";
+            
+            addChatMessage(clarification);
+        }
+    }
+    
+    // Start guided requirements with contextual questions
+    function startGuidedRequirements() {
+        enhancedConversationState.currentQuestion = 0;
+        
+        // Generate contextual questions based on product
+        const contextualQuestions = generateContextualQuestions(enhancedConversationState.productData);
+        
+        // Update the conversation step with contextual questions
+        ENHANCED_CONVERSATION_STEPS.REQUIREMENTS_GATHERING.subQuestions = contextualQuestions;
+        
+        const questions = contextualQuestions;
+        const productName = enhancedConversationState.productData?.name || 'this product';
+        
+        addChatMessage(`Great! To find the best alternates for ${productName}, I need to understand what's important to you.\n\n**Question 1 of ${questions.length}:** ${questions[0]}`);
+    }
+    
+    // Enhanced requirements processing with context awareness
+    function processEnhancedRequirements() {
+        log('Processing enhanced requirements:', enhancedConversationState.requirements);
+        
+        // Generate context-aware summary
+        const reqSummary = generateContextAwareRequirementsSummary();
+        const productName = enhancedConversationState.productData?.name || 'this product';
+        
+        addChatMessage(`Based on your answers about ${productName}, I understand you're looking for:\n\n${reqSummary}\n\nLet me search for suitable alternates...`);
+        
+        // TODO: This will integrate with LLM service in Phase 3
+        // For now, simulate finding alternates with context-aware messaging
+        setTimeout(() => {
+            enhancedConversationState.step = 'PRESENT_ALTERNATES';
+            
+            const category = detectProductCategory(enhancedConversationState.productData);
+            let searchMessage = "I found several potential alternates based on your requirements.";
+            
+            // Add category-specific search insights
+            switch (category) {
+                case 'electronics':
+                    searchMessage += " I focused on devices with similar functionality but potentially better specs or value.";
+                    break;
+                case 'office_supplies':
+                    searchMessage += " I looked for supplies with equivalent performance but better bulk pricing or quality.";
+                    break;
+                case 'tools':
+                    searchMessage += " I searched for tools with similar capabilities but potentially better durability or ergonomics.";
+                    break;
+                default:
+                    searchMessage += " I searched across similar products that match your specific requirements.";
+            }
+            
+            searchMessage += " However, the product search integration is not yet implemented. For now, you can add specific ASINs manually below.";
+            
+            addChatMessage(searchMessage);
+            
+            if (enhancedConversationState.approach === 'both' || enhancedConversationState.approach === 'guided') {
+                showManualASINSection();
+                showAlternatesSelection();
+            }
+        }, 2000);
+    }
+    
+    // Generate context-aware requirements summary
+    function generateContextAwareRequirementsSummary() {
+        const req = enhancedConversationState.requirements;
+        const category = detectProductCategory(enhancedConversationState.productData);
+        const summary = [];
+        
+        // Category-specific summary formatting
+        if (req.useCase) {
+            const useCaseLabel = category === 'electronics' ? 'Primary use' : 
+                               category === 'tools' ? 'Project type' :
+                               category === 'office_supplies' ? 'Office application' : 'Use case';
+            summary.push(`• **${useCaseLabel}**: ${req.useCase}`);
+        }
+        
+        if (req.mustHaveFeatures.length > 0) {
+            const featuresLabel = category === 'electronics' ? 'Required features' :
+                                category === 'tools' ? 'Performance requirements' :
+                                'Must-have qualities';
+            summary.push(`• **${featuresLabel}**: ${req.mustHaveFeatures.join(', ')}`);
+        }
+        
+        if (req.priceRange) {
+            if (req.priceRange.max && req.priceRange.min > 0) {
+                summary.push(`• **Budget range**: $${req.priceRange.min} - $${req.priceRange.max}`);
+            } else if (req.priceRange.max) {
+                summary.push(`• **Maximum budget**: $${req.priceRange.max}`);
+            } else if (req.priceRange.min) {
+                summary.push(`• **Minimum price**: $${req.priceRange.min}`);
+            }
+        }
+        
+        if (req.brandPreferences.length > 0) {
+            summary.push(`• **Preferred brands**: ${req.brandPreferences.join(', ')}`);
+        }
+        
+        if (req.brandExclusions.length > 0) {
+            summary.push(`• **Brands to avoid**: ${req.brandExclusions.join(', ')}`);
+        }
+        
+        if (req.technicalSpecs.length > 0) {
+            const specsLabel = category === 'electronics' ? 'Technical specifications' :
+                             category === 'tools' ? 'Performance specs' :
+                             'Technical requirements';
+            summary.push(`• **${specsLabel}**: ${req.technicalSpecs.join(', ')}`);
+        }
+        
+        // Add category-specific insights
+        if (req.keywords.length > 0) {
+            const keywordInsights = generateKeywordInsights(req.keywords, category);
+            if (keywordInsights) {
+                summary.push(`• **Key considerations**: ${keywordInsights}`);
+            }
+        }
+        
+        return summary.length > 0 ? summary.join('\n') : 
+               `General alternate products that serve a similar purpose to your ${enhancedConversationState.productData?.name || 'selected item'}`;
+    }
+    
+    // Generate insights from keywords based on product category
+    function generateKeywordInsights(keywords, category) {
+        const insights = [];
+        
+        if (keywords.includes('price-sensitive')) {
+            insights.push(category === 'electronics' ? 'value-focused options' : 'cost-effective alternatives');
+        }
+        
+        if (keywords.includes('quality-focused')) {
+            insights.push(category === 'tools' ? 'professional-grade durability' : 'premium quality materials');
+        }
+        
+        if (keywords.includes('technical-specs')) {
+            insights.push(category === 'electronics' ? 'specific performance requirements' : 'detailed specifications');
+        }
+        
+        if (keywords.includes('brand-specific')) {
+            insights.push('brand loyalty considerations');
+        }
+        
+        if (keywords.includes('use-case-specific')) {
+            insights.push(category === 'tools' ? 'application-specific features' : 'specialized functionality');
+        }
+        
+        return insights.length > 0 ? insights.join(', ') : null;
+    }
         const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
         
         if (!currentStep) {
@@ -1032,6 +1344,55 @@
         });
         
         log(`Chat message added (${sender}):`, message);
+    }
+    
+    // Enhanced conversation processing with context awareness
+    function processEnhancedUserInput(userInput) {
+        const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
+        
+        if (!currentStep) {
+            log('Error: Invalid conversation step:', enhancedConversationState.step);
+            return;
+        }
+        
+        // Add user message to chat
+        addChatMessage(userInput, true);
+        
+        // Process based on step type and context
+        switch (enhancedConversationState.step) {
+            case 'WILLINGNESS_CHECK':
+                handleEnhancedWillingnessResponse(userInput);
+                break;
+                
+            case 'EXPLAIN_BENEFITS':
+                handleBenefitsResponse(userInput);
+                break;
+                
+            case 'DETERMINE_APPROACH':
+                handleApproachSelection(userInput);
+                break;
+                
+            case 'REQUIREMENTS_GATHERING':
+                handleGuidedRequirements(userInput);
+                break;
+                
+            case 'REFINE_SELECTION':
+                handleSelectionRefinement(userInput);
+                break;
+                
+            case 'CONFIRM_SUBMISSION':
+                handleSubmissionConfirmation(userInput);
+                break;
+                
+            case 'MODIFY_SUMMARY':
+                handleSummaryModification(userInput);
+                break;
+                
+            default:
+                // For other steps, use standard processing
+                advanceEnhancedConversation();
+                break;
+        }
     }
     
     // Process user input based on current conversation step (updated for enhanced system)
