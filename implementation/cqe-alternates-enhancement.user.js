@@ -1184,124 +1184,162 @@
         openModal(productData);
     }
     
-    // Add "Add Alternates" option to dropdown menus
-    function addAlternatesButtons() {
-        const productRows = document.querySelectorAll(CQE_SELECTORS.productRows);
-        log(`Found ${productRows.length} product rows`);
+    // Add "Add Alternates" button near the ASIN input form
+    function addAlternatesButton() {
+        const asinInput = document.querySelector(CQE_SELECTORS.asinInput);
+        log('Looking for ASIN input:', CQE_SELECTORS.asinInput);
         
-        if (productRows.length === 0) {
-            log('No product rows found. Checking alternative selectors...');
+        if (!asinInput) {
+            log('ASIN input not found. Checking alternative selectors...');
             
-            // Try alternative selectors
+            // Try alternative selectors for ASIN input
             const alternativeSelectors = [
-                'tbody tr',
-                'tr[data-key]',
-                '.product-row',
-                '[role="row"]'
+                '#add-asin-or-isbn-form',
+                'input[placeholder*="ASIN"]',
+                'input[placeholder*="ISBN"]',
+                'input[id*="asin"]',
+                'input[name*="asin"]'
             ];
             
             for (const selector of alternativeSelectors) {
-                const altRows = document.querySelectorAll(selector);
-                log(`Alternative selector "${selector}" found ${altRows.length} rows`);
-                if (altRows.length > 0) {
-                    log('Sample row HTML:', altRows[0].outerHTML.substring(0, 200) + '...');
+                const altInput = document.querySelector(selector);
+                if (altInput) {
+                    log(`Found ASIN input with alternative selector: ${selector}`);
+                    return addButtonNearInput(altInput);
                 }
             }
             
-            // Check if table exists at all
-            const table = document.querySelector(CQE_SELECTORS.productTable);
-            if (table) {
-                log('Product table found, but no rows. Table HTML:', table.outerHTML.substring(0, 300) + '...');
-            } else {
-                log('Product table not found. Checking alternative table selectors...');
-                const altTables = document.querySelectorAll('table');
-                log(`Found ${altTables.length} tables on page`);
-                altTables.forEach((table, index) => {
-                    log(`Table ${index} classes:`, table.className);
-                });
-            }
-            
+            log('No ASIN input found with any selector');
             return;
         }
         
-        productRows.forEach((row, index) => {
-            log(`Processing row ${index}:`, row.getAttribute('data-key'));
+        log('ASIN input found:', asinInput);
+        addButtonNearInput(asinInput);
+    }
+    
+    // Add the button near the specified input element
+    function addButtonNearInput(inputElement) {
+        // Check if button already exists
+        const existingButton = document.querySelector('#cqe-add-alternates-btn');
+        if (existingButton) {
+            log('Add Alternates button already exists');
+            return;
+        }
+        
+        // Find the container that holds the input and "Add Item" button
+        let container = inputElement.closest('.b-flex');
+        if (!container) {
+            container = inputElement.closest('div');
+        }
+        
+        if (!container) {
+            log('Could not find suitable container for button placement');
+            return;
+        }
+        
+        log('Found container for button placement:', container);
+        
+        // Look for the "Add Item" button to place our button next to it
+        const addItemButton = container.querySelector('#add-item-btn') || 
+                             container.querySelector('button[type="submit"]') ||
+                             document.querySelector('#add-item-btn');
+        
+        if (addItemButton) {
+            log('Found Add Item button:', addItemButton);
             
-            const dropdown = row.querySelector(CQE_SELECTORS.dropdownMenus);
-            if (!dropdown) {
-                log(`No dropdown found for row ${index}. Checking alternative selectors...`);
-                
-                // Try alternative dropdown selectors
-                const altDropdowns = [
-                    '.dropdown-menu',
-                    '.b-dropdown',
-                    '[role="menu"]',
-                    '.action-menu'
-                ];
-                
-                for (const selector of altDropdowns) {
-                    const altDropdown = row.querySelector(selector);
-                    if (altDropdown) {
-                        log(`Found alternative dropdown with selector "${selector}"`);
-                        break;
-                    }
-                }
-                
-                // Show what's in the last cell (where dropdown should be)
-                const cells = row.querySelectorAll('td');
-                if (cells.length > 0) {
-                    const lastCell = cells[cells.length - 1];
-                    log(`Last cell HTML for row ${index}:`, lastCell.outerHTML.substring(0, 300) + '...');
-                }
-                
-                return;
-            }
-            
-            // Check if already added
-            const existingButton = dropdown.querySelector('#add-alternates-option');
-            if (existingButton) {
-                log(`Alternates button already exists for row ${index}`);
-                return;
-            }
-            
-            // Extract product data for this row
-            const productData = extractProductData(row);
-            if (!productData || !productData.asin) {
-                log(`Skipping row ${index} - no valid product data or ASIN`);
-                return;
-            }
-            
-            // Create new menu item
-            const alternatesItem = document.createElement('li');
-            alternatesItem.setAttribute('role', 'presentation');
-            
-            const productKey = row.getAttribute('data-key');
-            alternatesItem.innerHTML = `
-                <a id="add-alternates-option-${productKey}" 
-                   role="menuitem" 
-                   tabindex="-1" 
-                   class="b-clickable"
-                   data-product-key="${productKey}"
-                   href="#"
-                   style="display: block; padding: 8px 12px; text-decoration: none; color: inherit;">
-                  Add Alternates
-                </a>
-            `;
+            // Create our "Add Alternates" button
+            const alternatesButton = document.createElement('button');
+            alternatesButton.id = 'cqe-add-alternates-btn';
+            alternatesButton.className = 'b-button b-outline';
+            alternatesButton.type = 'button';
+            alternatesButton.textContent = 'Add Alternates';
+            alternatesButton.style.marginLeft = '0.5rem';
             
             // Add click handler
-            const link = alternatesItem.querySelector('a');
-            link.addEventListener('click', handleAddAlternatesClick);
+            alternatesButton.addEventListener('click', handleAddAlternatesClick);
             
-            // Insert as first option (before Delete)
-            dropdown.insertBefore(alternatesItem, dropdown.firstChild);
+            // Insert after the Add Item button
+            addItemButton.parentNode.insertBefore(alternatesButton, addItemButton.nextSibling);
             
-            log(`Added "Add Alternates" button to row ${index} for ASIN: ${productData.asin}`);
-        });
+            log('Add Alternates button added next to Add Item button');
+        } else {
+            // Fallback: add button in the input container
+            log('Add Item button not found, adding button to input container');
+            
+            const alternatesButton = document.createElement('button');
+            alternatesButton.id = 'cqe-add-alternates-btn';
+            alternatesButton.className = 'b-button b-outline';
+            alternatesButton.type = 'button';
+            alternatesButton.textContent = 'Add Alternates';
+            alternatesButton.style.marginTop = '0.5rem';
+            
+            // Add click handler
+            alternatesButton.addEventListener('click', handleAddAlternatesClick);
+            
+            // Add to container
+            container.appendChild(alternatesButton);
+            
+            log('Add Alternates button added to input container');
+        }
+    }
+    
+    // Handle "Add Alternates" button click (updated for ASIN input approach)
+    function handleAddAlternatesClick(event) {
+        event.preventDefault();
+        
+        // Get ASIN from the input field
+        const asinInput = document.querySelector(CQE_SELECTORS.asinInput) || 
+                         document.querySelector('#add-asin-or-isbn-form');
+        
+        if (!asinInput) {
+            log('Error: Could not find ASIN input field');
+            alert('Could not find ASIN input field');
+            return;
+        }
+        
+        const asin = asinInput.value.trim();
+        if (!asin) {
+            log('Error: No ASIN entered');
+            alert('Please enter an ASIN first');
+            return;
+        }
+        
+        // Validate ASIN
+        const validation = ASIN_VALIDATION.validate(asin);
+        if (!validation.valid) {
+            log('Error: Invalid ASIN format:', validation.error);
+            alert(`Invalid ASIN: ${validation.error}`);
+            return;
+        }
+        
+        // Get quantity from quantity input
+        const quantityInput = document.querySelector('#item-quantity') || 
+                             document.querySelector('input[type="number"]');
+        const quantity = quantityInput ? quantityInput.value || '1' : '1';
+        
+        // Create product data object
+        const productData = {
+            id: `input-${Date.now()}`,
+            asin: validation.asin,
+            name: `Product ${validation.asin}`,
+            image: '',
+            quantity: quantity,
+            totalPrice: '',
+            unitPrice: '',
+            seller: '',
+            merchantName: '',
+            source: 'asin-input'
+        };
+        
+        log('Add Alternates clicked for ASIN input:', productData);
+        
+        // Open modal interface
+        openModal(productData);
     }
     
     // Manual debug function - can be called from console
     window.debugCQEAlternates = function() {
-        console.log('=== CQE Alternates Debug Info ===');
+        console.log('=== CQE Alternates Debug Info (ASIN Input Approach) ===');
         
         // Check page detection
         console.log('1. Page Detection:');
@@ -1309,40 +1347,60 @@
         console.log('   Breadcrumb element:', document.querySelector('.b-breadcrumb'));
         console.log('   Is CQE page:', isCQEQuotePage());
         
-        // Check table structure
-        console.log('2. Table Structure:');
-        console.log('   Product table:', document.querySelector(CQE_SELECTORS.productTable));
-        console.log('   All tables:', document.querySelectorAll('table'));
-        
-        // Check rows
-        console.log('3. Product Rows:');
-        const rows = document.querySelectorAll(CQE_SELECTORS.productRows);
-        console.log('   Product rows found:', rows.length);
-        rows.forEach((row, i) => {
-            console.log(`   Row ${i}:`, row.getAttribute('data-key'), row);
-        });
-        
-        // Check ASIN input
-        console.log('4. ASIN Input:');
+        // Check ASIN input (primary focus)
+        console.log('2. ASIN Input:');
         const asinInput = document.querySelector(CQE_SELECTORS.asinInput);
         console.log('   ASIN input element:', asinInput);
         console.log('   ASIN input value:', asinInput?.value);
+        console.log('   ASIN input parent:', asinInput?.parentElement);
         
-        // Check dropdowns
-        console.log('5. Dropdown Menus:');
-        const dropdowns = document.querySelectorAll(CQE_SELECTORS.dropdownMenus);
-        console.log('   Dropdown menus found:', dropdowns.length);
-        dropdowns.forEach((dropdown, i) => {
-            console.log(`   Dropdown ${i}:`, dropdown);
+        // Try alternative ASIN input selectors
+        console.log('3. Alternative ASIN Input Selectors:');
+        const altSelectors = [
+            '#add-asin-or-isbn-form',
+            'input[placeholder*="ASIN"]',
+            'input[placeholder*="ISBN"]',
+            'input[id*="asin"]',
+            'input[name*="asin"]'
+        ];
+        
+        altSelectors.forEach(selector => {
+            const element = document.querySelector(selector);
+            console.log(`   ${selector}:`, element);
         });
         
-        // Check for products and extract data
-        console.log('6. Product Data Extraction:');
-        rows.forEach((row, i) => {
-            console.log(`   Row ${i} data:`, extractProductData(row));
-        });
+        // Check for Add Item button
+        console.log('4. Add Item Button:');
+        const addItemBtn = document.querySelector('#add-item-btn');
+        console.log('   Add Item button:', addItemBtn);
+        console.log('   Add Item button parent:', addItemBtn?.parentElement);
+        
+        // Check for our button
+        console.log('5. Our Add Alternates Button:');
+        const ourButton = document.querySelector('#cqe-add-alternates-btn');
+        console.log('   Add Alternates button:', ourButton);
+        
+        // Check quantity input
+        console.log('6. Quantity Input:');
+        const qtyInput = document.querySelector('#item-quantity');
+        console.log('   Quantity input:', qtyInput);
+        console.log('   Quantity value:', qtyInput?.value);
+        
+        // Show form structure
+        console.log('7. Form Structure:');
+        const formContainer = document.querySelector('.b-flex') || 
+                             document.querySelector('form') ||
+                             asinInput?.closest('div');
+        console.log('   Form container:', formContainer);
+        if (formContainer) {
+            console.log('   Form container HTML:', formContainer.outerHTML.substring(0, 500) + '...');
+        }
         
         console.log('=== End Debug Info ===');
+        
+        // Try to add button manually
+        console.log('Attempting to add button...');
+        addAlternatesButton();
     };
     
     // Initialize the enhancement
@@ -1360,10 +1418,10 @@
             return;
         }
         
-        // Add buttons to existing products
-        addAlternatesButtons();
+        // Add button near ASIN input
+        addAlternatesButton();
         
-        // Watch for new products being added
+        // Watch for changes to the form area in case it's dynamically loaded
         const observer = new MutationObserver((mutations) => {
             let shouldUpdate = false;
             
@@ -1371,12 +1429,15 @@
                 if (mutation.type === 'childList') {
                     mutation.addedNodes.forEach((node) => {
                         if (node.nodeType === Node.ELEMENT_NODE) {
-                            // Check if new product rows were added
-                            if (node.matches && node.matches(CQE_SELECTORS.productRows)) {
+                            // Check if ASIN input was added
+                            if (node.matches && (
+                                node.matches('#add-asin-or-isbn-form') ||
+                                node.querySelector && node.querySelector('#add-asin-or-isbn-form')
+                            )) {
                                 shouldUpdate = true;
                             }
-                            // Or if the table was updated
-                            if (node.querySelector && node.querySelector(CQE_SELECTORS.productRows)) {
+                            // Or if the form container was updated
+                            if (node.querySelector && node.querySelector('input, button')) {
                                 shouldUpdate = true;
                             }
                         }
@@ -1385,19 +1446,19 @@
             });
             
             if (shouldUpdate) {
-                log('New products detected, updating buttons...');
-                setTimeout(addAlternatesButtons, 100); // Small delay to ensure DOM is ready
+                log('Form area updated, checking for button...');
+                setTimeout(addAlternatesButton, 100); // Small delay to ensure DOM is ready
             }
         });
         
-        // Start observing
-        const tableContainer = document.querySelector(CQE_SELECTORS.productTable);
-        if (tableContainer) {
-            observer.observe(tableContainer, {
+        // Start observing the main container
+        const mainContainer = document.querySelector('.b-container') || document.body;
+        if (mainContainer) {
+            observer.observe(mainContainer, {
                 childList: true,
                 subtree: true
             });
-            log('Started observing for new products');
+            log('Started observing for form changes');
         }
         
         log('CQE Alternates Enhancement initialized successfully');
