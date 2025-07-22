@@ -4256,6 +4256,110 @@ Return top 8 products ranked by suitability as JSON array.
     // Start initialization
     initialize();
     
+    // LLM Error Handling and Fallback System
+    const LLM_FALLBACK_SYSTEM = {
+        // Circuit breaker for LLM service reliability
+        circuitBreaker: {
+            state: 'CLOSED', // CLOSED, OPEN, HALF_OPEN
+            failureCount: 0,
+            failureThreshold: 5,
+            timeout: 60000, // 1 minute
+            lastFailureTime: null
+        },
+        
+        // Static fallback responses
+        STATIC_FALLBACKS: {
+            willingness_explanation: [
+                "Alternates can help you get better pricing, improved availability, or features that better match your needs.",
+                "Finding alternates gives you more options and helps suppliers provide competitive quotes."
+            ],
+            requirements_clarification: [
+                "Could you tell me more about what's most important to you in this product?",
+                "What specific features or qualities matter most for your needs?"
+            ],
+            search_progress: [
+                "Searching for suitable alternates based on your requirements...",
+                "Looking for products that match your specifications..."
+            ]
+        },
+        
+        // Handle LLM errors gracefully
+        handleError: function(error, context = {}) {
+            log('LLM Error handled with fallback:', error.message);
+            
+            CONVERSATION_ANALYTICS.trackUserAction('llm_error_fallback', {
+                error: error.message,
+                context: context.responseType
+            });
+            
+            return this.getFallbackResponse(context);
+        },
+        
+        // Get appropriate fallback response
+        getFallbackResponse: function(context) {
+            const responses = this.STATIC_FALLBACKS[context.responseType] || 
+                            this.STATIC_FALLBACKS.requirements_clarification;
+            return responses[Math.floor(Math.random() * responses.length)];
+        },
+        
+        // Update circuit breaker state
+        updateCircuitBreaker: function(success) {
+            if (success) {
+                this.circuitBreaker.failureCount = Math.max(0, this.circuitBreaker.failureCount - 1);
+                if (this.circuitBreaker.state === 'OPEN' && this.circuitBreaker.failureCount === 0) {
+                    this.circuitBreaker.state = 'CLOSED';
+                    log('LLM circuit breaker closed - service recovered');
+                }
+            } else {
+                this.circuitBreaker.failureCount++;
+                if (this.circuitBreaker.failureCount >= this.circuitBreaker.failureThreshold) {
+                    this.circuitBreaker.state = 'OPEN';
+                    log('LLM circuit breaker opened - service temporarily disabled');
+                    
+                    // Auto-recovery after timeout
+                    setTimeout(() => {
+                        this.circuitBreaker.state = 'CLOSED';
+                        this.circuitBreaker.failureCount = 0;
+                    }, this.circuitBreaker.timeout);
+                }
+            }
+        }
+    };
+    
+    // Enhanced LLM request with error handling
+    async function makeLLMRequestWithFallback(prompt, options = {}, context = {}) {
+        if (LLM_FALLBACK_SYSTEM.circuitBreaker.state === 'OPEN') {
+            return {
+                success: false,
+                response: LLM_FALLBACK_SYSTEM.getFallbackResponse(context),
+                fallback: true
+            };
+        }
+        
+        try {
+            const response = await STRANDS_INTEGRATION.makeRequest(prompt, options);
+            
+            if (response.success) {
+                LLM_FALLBACK_SYSTEM.updateCircuitBreaker(true);
+                return response;
+            } else {
+                LLM_FALLBACK_SYSTEM.updateCircuitBreaker(false);
+                return {
+                    success: false,
+                    response: LLM_FALLBACK_SYSTEM.handleError(new Error(response.error), context),
+                    fallback: true
+                };
+            }
+        } catch (error) {
+            LLM_FALLBACK_SYSTEM.updateCircuitBreaker(false);
+            return {
+                success: false,
+                response: LLM_FALLBACK_SYSTEM.handleError(error, context),
+                fallback: true
+            };
+        }
+    }
+    
     // Test LLM integration function
     async function testLLMIntegration() {
         console.log('Testing Strands SDK integration...');
