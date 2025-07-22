@@ -348,6 +348,21 @@
             if (e.target.matches('.cqe-modal-overlay')) {
                 closeModal();
             }
+            
+            // Manual ASIN add button
+            if (e.target.matches('#cqe-add-asin')) {
+                handleManualASINAdd();
+            }
+            
+            // Chat send button
+            if (e.target.matches('#cqe-chat-send')) {
+                sendChatMessage();
+            }
+            
+            // Confirm alternates button
+            if (e.target.matches('#cqe-confirm-alternates')) {
+                handleConfirmAlternates();
+            }
         });
         
         // ESC key to close modal
@@ -360,20 +375,352 @@
             }
         });
         
-        // Chat input handlers (placeholder for Task 1.3)
+        // Chat input handlers
         document.addEventListener('keypress', (e) => {
             if (e.target.matches('#cqe-chat-input') && e.key === 'Enter') {
-                // TODO: Implement chat functionality in Task 1.3
-                log('Chat input detected - will implement in Task 1.3');
+                sendChatMessage();
             }
+            
+            if (e.target.matches('#cqe-manual-asin') && e.key === 'Enter') {
+                handleManualASINAdd();
+            }
+        });
+    }
+    
+    // Conversation state management
+    let conversationState = {
+        step: 'WILLINGNESS_CHECK',
+        productData: null,
+        requirements: null,
+        selectedAlternates: [],
+        conversationHistory: []
+    };
+    
+    // Conversation flow definition
+    const CONVERSATION_STEPS = {
+        WILLINGNESS_CHECK: {
+            message: "Would you be willing to accept alternate ASINs for this request? This can help you get better pricing and availability options.",
+            responses: ["Yes", "No"],
+            nextStep: {
+                "Yes": "REQUIREMENTS_GATHERING",
+                "No": "END_CONVERSATION"
+            }
+        },
+        
+        REQUIREMENTS_GATHERING: {
+            message: "Great! What are the key attributes a suitable alternate needs to meet to be suitable for you? For example: specific technical specifications, price range, brand preferences, or use case requirements.",
+            type: "free_text",
+            nextStep: "PROCESS_REQUIREMENTS"
+        },
+        
+        PROCESS_REQUIREMENTS: {
+            message: "Thank you for that information. Let me process your requirements and search for suitable alternates...",
+            nextStep: "PRESENT_ALTERNATES"
+        },
+        
+        PRESENT_ALTERNATES: {
+            message: "Based on your requirements, I found these potential alternates. Please select the ones that would work for you:",
+            type: "selection",
+            nextStep: "MANUAL_ADDITION"
+        },
+        
+        MANUAL_ADDITION: {
+            message: "You can also add specific ASINs manually if you have alternates in mind:",
+            type: "manual_input",
+            nextStep: "SUMMARY_GENERATION"
+        },
+        
+        SUMMARY_GENERATION: {
+            message: "I'll now create a summary of your requirements to share with suppliers. This will help them understand what you're looking for.",
+            nextStep: "END_CONVERSATION"
+        },
+        
+        END_CONVERSATION: {
+            message: "Thank you! Your alternate preferences have been recorded.",
+            nextStep: null
+        }
+    };
+    
+    // Add message to chat
+    function addChatMessage(message, isUser = false) {
+        const messagesContainer = document.querySelector('#cqe-chat-messages');
+        if (!messagesContainer) return;
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+        
+        const sender = isUser ? 'You' : 'Assistant';
+        messageDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
+        
+        messagesContainer.appendChild(messageDiv);
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Store in conversation history
+        conversationState.conversationHistory.push({
+            message: message,
+            isUser: isUser,
+            timestamp: new Date().toISOString()
         });
         
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('#cqe-chat-send')) {
-                // TODO: Implement chat functionality in Task 1.3
-                log('Chat send clicked - will implement in Task 1.3');
-            }
+        log(`Chat message added (${sender}):`, message);
+    }
+    
+    // Process user input based on current conversation step
+    function processUserInput(userInput) {
+        const currentStep = CONVERSATION_STEPS[conversationState.step];
+        
+        if (!currentStep) {
+            log('Error: Invalid conversation step:', conversationState.step);
+            return;
+        }
+        
+        // Add user message to chat
+        addChatMessage(userInput, true);
+        
+        // Process based on step type
+        switch (conversationState.step) {
+            case 'WILLINGNESS_CHECK':
+                handleWillingnessResponse(userInput);
+                break;
+                
+            case 'REQUIREMENTS_GATHERING':
+                handleRequirementsInput(userInput);
+                break;
+                
+            case 'PROCESS_REQUIREMENTS':
+                // This step is automatic, shouldn't receive user input
+                break;
+                
+            default:
+                // For other steps, just advance to next step
+                advanceConversation();
+                break;
+        }
+    }
+    
+    // Handle willingness check response
+    function handleWillingnessResponse(response) {
+        const normalizedResponse = response.toLowerCase().trim();
+        
+        if (normalizedResponse.includes('yes') || normalizedResponse.includes('y')) {
+            conversationState.step = 'REQUIREMENTS_GATHERING';
+            addChatMessage(CONVERSATION_STEPS.REQUIREMENTS_GATHERING.message);
+        } else if (normalizedResponse.includes('no') || normalizedResponse.includes('n')) {
+            conversationState.step = 'END_CONVERSATION';
+            addChatMessage("I understand. You can still manually add specific ASINs if you change your mind.");
+            showManualASINSection();
+        } else {
+            // Ask for clarification
+            addChatMessage("I didn't quite understand. Could you please answer with 'Yes' or 'No'?");
+        }
+    }
+    
+    // Handle requirements gathering input
+    function handleRequirementsInput(requirements) {
+        conversationState.requirements = requirements;
+        conversationState.step = 'PROCESS_REQUIREMENTS';
+        
+        addChatMessage(CONVERSATION_STEPS.PROCESS_REQUIREMENTS.message);
+        
+        // Simulate processing delay
+        setTimeout(() => {
+            processRequirements(requirements);
+        }, 2000);
+    }
+    
+    // Process requirements (placeholder for LLM integration)
+    function processRequirements(requirements) {
+        log('Processing requirements:', requirements);
+        
+        // TODO: Integrate with LLM service in Phase 3
+        // For now, simulate finding alternates
+        conversationState.step = 'PRESENT_ALTERNATES';
+        
+        addChatMessage("I found several potential alternates based on your requirements. However, the product search integration is not yet implemented. For now, you can add specific ASINs manually below.");
+        
+        showManualASINSection();
+        showAlternatesSelection();
+    }
+    
+    // Show manual ASIN input section
+    function showManualASINSection() {
+        const section = document.querySelector('#cqe-manual-asin-section');
+        if (section) {
+            section.style.display = 'block';
+            log('Manual ASIN section shown');
+        }
+    }
+    
+    // Show alternates selection section
+    function showAlternatesSelection() {
+        const section = document.querySelector('#cqe-alternates-selection');
+        if (section) {
+            section.style.display = 'block';
+            log('Alternates selection section shown');
+        }
+    }
+    
+    // Handle manual ASIN addition
+    function handleManualASINAdd() {
+        const asinInput = document.querySelector('#cqe-manual-asin');
+        if (!asinInput) return;
+        
+        const asin = asinInput.value.trim().toUpperCase();
+        
+        // Validate ASIN format
+        const asinRegex = /^([0-9]{9}[0-9X]|[A-Z][A-Z0-9]{9})$/;
+        if (!asinRegex.test(asin)) {
+            addChatMessage("Invalid ASIN format. Please enter a valid 10-character ASIN.", false);
+            return;
+        }
+        
+        // Check if already added
+        if (conversationState.selectedAlternates.some(alt => alt.asin === asin)) {
+            addChatMessage("This ASIN has already been added.", false);
+            return;
+        }
+        
+        // Add to selected alternates
+        const alternate = {
+            asin: asin,
+            source: 'manual',
+            name: 'Manual ASIN Entry',
+            selected: true
+        };
+        
+        conversationState.selectedAlternates.push(alternate);
+        
+        // Update UI
+        updateManualASINsList();
+        updateConfirmButton();
+        
+        // Clear input
+        asinInput.value = '';
+        
+        addChatMessage(`Added ASIN ${asin} to your alternates list.`, false);
+        log('Manual ASIN added:', alternate);
+    }
+    
+    // Update manual ASINs list display
+    function updateManualASINsList() {
+        const listContainer = document.querySelector('#cqe-manual-asins-list');
+        if (!listContainer) return;
+        
+        const manualASINs = conversationState.selectedAlternates.filter(alt => alt.source === 'manual');
+        
+        if (manualASINs.length === 0) {
+            listContainer.innerHTML = '';
+            return;
+        }
+        
+        const listHtml = manualASINs.map(alt => `
+            <div class="manual-asin-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: #f8f9fa; margin: 0.25rem 0; border-radius: 4px;">
+                <span><strong>${alt.asin}</strong></span>
+                <button class="remove-asin-btn b-button b-outline" data-asin="${alt.asin}" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Remove</button>
+            </div>
+        `).join('');
+        
+        listContainer.innerHTML = listHtml;
+        
+        // Add remove handlers
+        listContainer.querySelectorAll('.remove-asin-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const asinToRemove = e.target.getAttribute('data-asin');
+                removeManualASIN(asinToRemove);
+            });
         });
+    }
+    
+    // Remove manual ASIN
+    function removeManualASIN(asin) {
+        conversationState.selectedAlternates = conversationState.selectedAlternates.filter(alt => alt.asin !== asin);
+        updateManualASINsList();
+        updateConfirmButton();
+        addChatMessage(`Removed ASIN ${asin} from your alternates list.`, false);
+        log('Manual ASIN removed:', asin);
+    }
+    
+    // Update confirm button state
+    function updateConfirmButton() {
+        const confirmBtn = document.querySelector('#cqe-confirm-alternates');
+        if (!confirmBtn) return;
+        
+        const hasAlternates = conversationState.selectedAlternates.length > 0;
+        confirmBtn.disabled = !hasAlternates;
+        
+        if (hasAlternates) {
+            confirmBtn.textContent = `Add ${conversationState.selectedAlternates.length} Alternate${conversationState.selectedAlternates.length > 1 ? 's' : ''}`;
+        } else {
+            confirmBtn.textContent = 'Add Selected Alternates';
+        }
+    }
+    
+    // Send chat message
+    function sendChatMessage() {
+        const chatInput = document.querySelector('#cqe-chat-input');
+        if (!chatInput) return;
+        
+        const message = chatInput.value.trim();
+        if (!message) return;
+        
+        // Clear input
+        chatInput.value = '';
+        
+        // Process the message
+        processUserInput(message);
+    }
+    
+    // Reset conversation state
+    function resetConversationState(productData) {
+        conversationState = {
+            step: 'WILLINGNESS_CHECK',
+            productData: productData,
+            requirements: null,
+            selectedAlternates: [],
+            conversationHistory: []
+        };
+        
+        // Clear chat messages except initial one
+        const messagesContainer = document.querySelector('#cqe-chat-messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = `
+                <div class="chat-message assistant">
+                    <strong>Assistant:</strong> I'll help you find suitable alternate products. Let me start by asking: would you be willing to accept alternate ASINs for this request? This can help you get better pricing and availability options.
+                </div>
+            `;
+        }
+        
+        // Hide sections
+        const manualSection = document.querySelector('#cqe-manual-asin-section');
+        const alternatesSection = document.querySelector('#cqe-alternates-selection');
+        if (manualSection) manualSection.style.display = 'none';
+        if (alternatesSection) alternatesSection.style.display = 'none';
+        
+        // Reset confirm button
+        updateConfirmButton();
+        
+        log('Conversation state reset for product:', productData);
+    }
+    
+    // Handle confirm alternates button
+    function handleConfirmAlternates() {
+        if (conversationState.selectedAlternates.length === 0) {
+            addChatMessage("No alternates selected. Please add some ASINs first.", false);
+            return;
+        }
+        
+        log('Confirming alternates:', conversationState.selectedAlternates);
+        
+        // TODO: Integrate with CQE API in Phase 5
+        // For now, just show success message
+        addChatMessage(`Great! I've recorded ${conversationState.selectedAlternates.length} alternate ASIN${conversationState.selectedAlternates.length > 1 ? 's' : ''} for your request. This information will be shared with suppliers to help them provide better quotes.`, false);
+        
+        // Close modal after short delay
+        setTimeout(() => {
+            closeModal();
+        }, 2000);
     }
     
     // Open modal with product context
@@ -384,6 +731,9 @@
         if (!modal) {
             modal = createModal();
         }
+        
+        // Reset conversation state
+        resetConversationState(productData);
         
         // Update product context
         const contextDiv = document.querySelector('#cqe-product-context');
