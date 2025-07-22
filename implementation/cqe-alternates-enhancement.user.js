@@ -952,31 +952,377 @@
                `General alternate products that serve a similar purpose to your ${enhancedConversationState.productData?.name || 'selected item'}`;
     }
     
-    // Generate insights from keywords based on product category
-    function generateKeywordInsights(keywords, category) {
-        const insights = [];
+    // Conversation state persistence system
+    const CONVERSATION_PERSISTENCE = {
+        STORAGE_KEY: 'cqe_alternates_conversation_state',
+        EXPIRY_HOURS: 24, // Conversation state expires after 24 hours
         
-        if (keywords.includes('price-sensitive')) {
-            insights.push(category === 'electronics' ? 'value-focused options' : 'cost-effective alternatives');
+        // Save conversation state to localStorage
+        saveState: function(state) {
+            try {
+                const stateWithTimestamp = {
+                    ...state,
+                    savedAt: new Date().toISOString(),
+                    expiresAt: new Date(Date.now() + (this.EXPIRY_HOURS * 60 * 60 * 1000)).toISOString()
+                };
+                
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stateWithTimestamp));
+                log('Conversation state saved to localStorage');
+                return true;
+            } catch (error) {
+                log('Error saving conversation state:', error);
+                return false;
+            }
+        },
+        
+        // Load conversation state from localStorage
+        loadState: function() {
+            try {
+                const savedState = localStorage.getItem(this.STORAGE_KEY);
+                if (!savedState) {
+                    log('No saved conversation state found');
+                    return null;
+                }
+                
+                const state = JSON.parse(savedState);
+                
+                // Check if state has expired
+                if (state.expiresAt && new Date(state.expiresAt) < new Date()) {
+                    log('Saved conversation state has expired, clearing...');
+                    this.clearState();
+                    return null;
+                }
+                
+                log('Conversation state loaded from localStorage');
+                return state;
+            } catch (error) {
+                log('Error loading conversation state:', error);
+                this.clearState(); // Clear corrupted state
+                return null;
+            }
+        },
+        
+        // Clear conversation state from localStorage
+        clearState: function() {
+            try {
+                localStorage.removeItem(this.STORAGE_KEY);
+                log('Conversation state cleared from localStorage');
+                return true;
+            } catch (error) {
+                log('Error clearing conversation state:', error);
+                return false;
+            }
+        },
+        
+        // Check if there's a valid saved state
+        hasValidState: function() {
+            const state = this.loadState();
+            return state !== null;
+        }
+    };
+    
+    // Auto-save conversation state at key points
+    function autoSaveConversationState() {
+        // Only save if we have meaningful progress
+        if (enhancedConversationState.step !== 'WILLINGNESS_CHECK' || 
+            enhancedConversationState.conversationHistory.length > 1 ||
+            enhancedConversationState.selectedAlternates.length > 0) {
+            
+            CONVERSATION_PERSISTENCE.saveState(enhancedConversationState);
+        }
+    }
+    
+    // Restore conversation from saved state
+    function restoreConversationState() {
+        const savedState = CONVERSATION_PERSISTENCE.loadState();
+        if (!savedState) return false;
+        
+        try {
+            // Restore the conversation state
+            enhancedConversationState = {
+                ...savedState,
+                // Remove persistence metadata
+                savedAt: undefined,
+                expiresAt: undefined
+            };
+            
+            // Restore chat messages
+            const messagesContainer = document.querySelector('#cqe-chat-messages');
+            if (messagesContainer && enhancedConversationState.conversationHistory) {
+                messagesContainer.innerHTML = '';
+                
+                enhancedConversationState.conversationHistory.forEach(historyItem => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `chat-message ${historyItem.isUser ? 'user' : 'assistant'}`;
+                    
+                    const sender = historyItem.isUser ? 'You' : 'Assistant';
+                    messageDiv.innerHTML = `<strong>${sender}:</strong> ${historyItem.message}`;
+                    
+                    messagesContainer.appendChild(messageDiv);
+                });
+                
+                // Scroll to bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+            
+            // Restore UI state
+            if (enhancedConversationState.selectedAlternates.length > 0) {
+                showManualASINSection();
+                updateManualASINsList();
+                updateConfirmButton();
+            }
+            
+            // Show appropriate sections based on conversation step
+            if (['MANUAL_ADDITION', 'MANUAL_ADDITION_ONLY', 'OFFER_MANUAL_ONLY'].includes(enhancedConversationState.step)) {
+                showManualASINSection();
+            }
+            
+            if (['PRESENT_ALTERNATES', 'REFINE_SELECTION'].includes(enhancedConversationState.step)) {
+                showAlternatesSelection();
+            }
+            
+            log('Conversation state restored successfully');
+            return true;
+        } catch (error) {
+            log('Error restoring conversation state:', error);
+            CONVERSATION_PERSISTENCE.clearState();
+            return false;
+        }
+    }
+    
+    // Enhanced conversation state reset with persistence handling
+    function resetConversationState(productData) {
+        // Clear any existing saved state when starting fresh
+        CONVERSATION_PERSISTENCE.clearState();
+        
+        enhancedConversationState = {
+            step: 'WILLINGNESS_CHECK',
+            productData: productData,
+            approach: null,
+            requirements: {
+                useCase: '',
+                mustHaveFeatures: [],
+                priceRange: null,
+                brandPreferences: [],
+                brandExclusions: [],
+                technicalSpecs: [],
+                keywords: []
+            },
+            currentQuestion: 0,
+            selectedAlternates: [],
+            suggestedAlternates: [],
+            conversationHistory: [],
+            userPreferences: {
+                responseStyle: 'detailed',
+                searchDepth: 'standard'
+            }
+        };
+        
+        // Clear chat messages except initial one
+        const messagesContainer = document.querySelector('#cqe-chat-messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = `
+                <div class="chat-message assistant">
+                    <strong>Assistant:</strong> ${ENHANCED_CONVERSATION_STEPS.WILLINGNESS_CHECK.message}
+                </div>
+            `;
         }
         
-        if (keywords.includes('quality-focused')) {
-            insights.push(category === 'tools' ? 'professional-grade durability' : 'premium quality materials');
+        // Hide sections
+        const manualSection = document.querySelector('#cqe-manual-asin-section');
+        const alternatesSection = document.querySelector('#cqe-alternates-selection');
+        if (manualSection) manualSection.style.display = 'none';
+        if (alternatesSection) alternatesSection.style.display = 'none';
+        
+        // Reset confirm button
+        updateConfirmButton();
+        
+        log('Enhanced conversation state reset for product:', productData);
+    }
+    
+    // Enhanced modal opening with state restoration
+    function openModal(productData) {
+        let modal = document.querySelector('#cqe-alternates-modal');
+        
+        // Create modal if it doesn't exist
+        if (!modal) {
+            modal = createModal();
         }
         
-        if (keywords.includes('technical-specs')) {
-            insights.push(category === 'electronics' ? 'specific performance requirements' : 'detailed specifications');
+        // Check if we should restore a previous conversation for this product
+        const savedState = CONVERSATION_PERSISTENCE.loadState();
+        let stateRestored = false;
+        
+        if (savedState && savedState.productData && 
+            savedState.productData.asin === productData.asin) {
+            
+            // Ask user if they want to continue previous conversation
+            const continueConversation = confirm(
+                `I found a previous conversation about ${productData.name}. Would you like to continue where you left off?`
+            );
+            
+            if (continueConversation) {
+                stateRestored = restoreConversationState();
+                
+                if (stateRestored) {
+                    // Update product context with current data (in case it changed)
+                    enhancedConversationState.productData = productData;
+                    
+                    addChatMessage("Welcome back! I've restored our previous conversation. You can continue from where we left off.", false);
+                }
+            }
         }
         
-        if (keywords.includes('brand-specific')) {
-            insights.push('brand loyalty considerations');
+        // If no state was restored, start fresh
+        if (!stateRestored) {
+            resetConversationState(productData);
         }
         
-        if (keywords.includes('use-case-specific')) {
-            insights.push(category === 'tools' ? 'application-specific features' : 'specialized functionality');
+        // Update product context display
+        const contextDiv = document.querySelector('#cqe-product-context');
+        if (contextDiv && productData) {
+            contextDiv.innerHTML = `
+                <strong>Product:</strong> ${productData.name}<br>
+                <strong>ASIN:</strong> ${productData.asin}<br>
+                <strong>Quantity:</strong> ${productData.quantity}<br>
+                <strong>Current Price:</strong> $${productData.unitPrice}/unit
+            `;
         }
         
-        return insights.length > 0 ? insights.join(', ') : null;
+        // Show modal
+        modal.style.display = 'flex';
+        
+        // Focus on chat input
+        setTimeout(() => {
+            const chatInput = document.querySelector('#cqe-chat-input');
+            if (chatInput) {
+                chatInput.focus();
+            }
+        }, 100);
+        
+        log('Modal opened for product:', productData);
+    }
+    
+    // Enhanced message adding with auto-save
+    function addChatMessage(message, isUser = false) {
+        const messagesContainer = document.querySelector('#cqe-chat-messages');
+        if (!messagesContainer) return;
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+        
+        const sender = isUser ? 'You' : 'Assistant';
+        messageDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
+        
+        messagesContainer.appendChild(messageDiv);
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Store in enhanced conversation history
+        enhancedConversationState.conversationHistory.push({
+            message: message,
+            isUser: isUser,
+            timestamp: new Date().toISOString(),
+            step: enhancedConversationState.step,
+            questionIndex: enhancedConversationState.currentQuestion
+        });
+        
+        // Auto-save state after each message
+        autoSaveConversationState();
+        
+        log(`Chat message added (${sender}):`, message);
+    }
+    
+    // Enhanced manual ASIN handling with auto-save
+    function handleManualASINAdd() {
+        const asinInput = document.querySelector('#cqe-manual-asin');
+        if (!asinInput) return;
+        
+        const rawInput = asinInput.value.trim();
+        
+        if (!rawInput) {
+            showInputError(asinInput, "Please enter an ASIN or Amazon URL.");
+            return;
+        }
+        
+        // Try to extract ASIN from input
+        const extractedASIN = ASIN_VALIDATION.extract(rawInput);
+        
+        if (!extractedASIN) {
+            showInputError(asinInput, "Invalid ASIN format. Please enter a valid 10-character ASIN or Amazon product URL.");
+            return;
+        }
+        
+        // Check if already added
+        if (enhancedConversationState.selectedAlternates.some(alt => alt.asin === extractedASIN)) {
+            showInputError(asinInput, "This ASIN has already been added.");
+            return;
+        }
+        
+        // Clear any previous errors
+        clearInputError(asinInput);
+        
+        // Add to selected alternates
+        const alternate = {
+            asin: extractedASIN,
+            source: 'manual',
+            name: `Manual Entry: ${extractedASIN}`,
+            selected: true,
+            addedAt: new Date().toISOString()
+        };
+        
+        enhancedConversationState.selectedAlternates.push(alternate);
+        
+        // Update UI
+        updateManualASINsList();
+        updateConfirmButton();
+        
+        // Clear input
+        asinInput.value = '';
+        
+        addChatMessage(`Added ASIN ${extractedASIN} to your alternates list.`, false);
+        
+        // Auto-save state after adding ASIN
+        autoSaveConversationState();
+        
+        log('Manual ASIN added:', alternate);
+    }
+    
+    // Enhanced modal closing with state cleanup
+    function closeModal() {
+        const modal = document.querySelector('#cqe-alternates-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            
+            // Stop auto-save interval
+            stopAutoSaveInterval();
+            
+            // Clear conversation state when modal is closed
+            // (user can restore it if they reopen for the same product)
+            CONVERSATION_PERSISTENCE.clearState();
+            
+            log('Modal closed and conversation state cleared');
+        }
+    }
+    
+    // Add periodic auto-save during long conversations
+    let autoSaveInterval;
+    
+    function startAutoSaveInterval() {
+        // Auto-save every 30 seconds during active conversation
+        autoSaveInterval = setInterval(() => {
+            if (enhancedConversationState.conversationHistory.length > 1) {
+                autoSaveConversationState();
+            }
+        }, 30000);
+    }
+    
+    function stopAutoSaveInterval() {
+        if (autoSaveInterval) {
+            clearInterval(autoSaveInterval);
+            autoSaveInterval = null;
+        }
     }
         const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
         
