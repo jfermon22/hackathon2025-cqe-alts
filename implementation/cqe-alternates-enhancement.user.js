@@ -2260,6 +2260,83 @@ Return top 8 products ranked by suitability as JSON array.
         testLLMIntegration();
     };
     
+    // Manual button addition function for testing
+    window.forceAddAlternatesButton = function() {
+        console.log('=== Force Adding Alternates Button ===');
+        
+        // Remove existing button if present
+        const existing = document.querySelector('#cqe-add-alternates-btn');
+        if (existing) {
+            existing.remove();
+            console.log('Removed existing button');
+        }
+        
+        // Find any input field as fallback
+        const anyInput = document.querySelector('input[type="text"]') || 
+                        document.querySelector('input') ||
+                        document.querySelector('#add-asin-or-isbn-form');
+        
+        if (!anyInput) {
+            console.log('No input field found on page');
+            return;
+        }
+        
+        console.log('Using input field:', anyInput);
+        
+        // Create button with enhanced styling
+        const button = document.createElement('button');
+        button.id = 'cqe-add-alternates-btn';
+        button.textContent = 'Add Alternates';
+        button.style.cssText = `
+            margin: 10px;
+            padding: 8px 16px;
+            background: #ff9900;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        `;
+        
+        // Add hover effect
+        button.addEventListener('mouseenter', () => {
+            button.style.backgroundColor = '#e88900';
+        });
+        button.addEventListener('mouseleave', () => {
+            button.style.backgroundColor = '#ff9900';
+        });
+        
+        // Add click handler
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('Add Alternates button clicked!');
+            
+            // Get ASIN from any available input
+            const asin = anyInput.value || 'B00V5D4VX8'; // fallback ASIN for testing
+            
+            const productData = {
+                id: 'test-' + Date.now(),
+                asin: asin,
+                name: `Test Product ${asin}`,
+                quantity: '1',
+                unitPrice: '10.00'
+            };
+            
+            console.log('Opening modal with test data:', productData);
+            openModal(productData);
+        });
+        
+        // Insert button after the input
+        anyInput.parentNode.insertBefore(button, anyInput.nextSibling);
+        
+        console.log('✅ Add Alternates button force-added successfully!');
+        console.log('Button element:', button);
+        
+        return button;
+    };
+    
     // Intelligent Response Generation System
     const INTELLIGENT_RESPONSES = {
         // Response generation templates with context
@@ -3973,37 +4050,136 @@ Return top 8 products ranked by suitability as JSON array.
         openModal(productData);
     }
     
-    // Add "Add Alternates" button near the ASIN input form
+    // Add "Add Alternates" button near the ASIN input form (enhanced)
     function addAlternatesButton() {
-        const asinInput = document.querySelector(CQE_SELECTORS.asinInput);
-        log('Looking for ASIN input:', CQE_SELECTORS.asinInput);
+        log('=== Add Alternates Button Placement Debug ===');
         
-        if (!asinInput) {
-            log('ASIN input not found. Checking alternative selectors...');
-            
-            // Try alternative selectors for ASIN input
-            const alternativeSelectors = [
-                '#add-asin-or-isbn-form',
-                'input[placeholder*="ASIN"]',
-                'input[placeholder*="ISBN"]',
-                'input[id*="asin"]',
-                'input[name*="asin"]'
-            ];
-            
-            for (const selector of alternativeSelectors) {
-                const altInput = document.querySelector(selector);
-                if (altInput) {
-                    log(`Found ASIN input with alternative selector: ${selector}`);
-                    return addButtonNearInput(altInput);
-                }
-            }
-            
-            log('No ASIN input found with any selector');
+        // Check if button already exists
+        const existingButton = document.querySelector('#cqe-add-alternates-btn');
+        if (existingButton) {
+            log('Add Alternates button already exists');
             return;
         }
         
-        log('ASIN input found:', asinInput);
-        addButtonNearInput(asinInput);
+        // Try multiple strategies to find the ASIN input
+        let asinInput = null;
+        const selectors = [
+            CQE_SELECTORS.asinInput,
+            '#add-asin-or-isbn-form',
+            'input[placeholder*="ASIN"]',
+            'input[placeholder*="ISBN"]',
+            'input[id*="asin"]',
+            'input[name*="asin"]',
+            'input[type="text"]' // Last resort
+        ];
+        
+        for (const selector of selectors) {
+            asinInput = document.querySelector(selector);
+            if (asinInput) {
+                log(`Found ASIN input with selector: ${selector}`, asinInput);
+                break;
+            }
+        }
+        
+        if (!asinInput) {
+            log('No ASIN input found with any selector');
+            log('Available inputs on page:', document.querySelectorAll('input'));
+            return;
+        }
+        
+        // Try multiple strategies to find the Add Item button
+        let addItemButton = null;
+        const buttonSelectors = [
+            '#add-item-btn',
+            'button[type="submit"]',
+            'button:contains("Add Item")',
+            '.b-button'
+        ];
+        
+        for (const selector of buttonSelectors) {
+            if (selector.includes('contains')) {
+                // Handle text-based selector
+                const buttons = document.querySelectorAll('button');
+                for (const btn of buttons) {
+                    if (btn.textContent.includes('Add Item')) {
+                        addItemButton = btn;
+                        break;
+                    }
+                }
+            } else {
+                addItemButton = document.querySelector(selector);
+            }
+            
+            if (addItemButton) {
+                log(`Found Add Item button with selector: ${selector}`, addItemButton);
+                break;
+            }
+        }
+        
+        // Create our "Add Alternates" button
+        const alternatesButton = document.createElement('button');
+        alternatesButton.id = 'cqe-add-alternates-btn';
+        alternatesButton.className = 'b-button b-outline';
+        alternatesButton.type = 'button';
+        alternatesButton.textContent = 'Add Alternates';
+        alternatesButton.style.cssText = `
+            margin-left: 0.5rem;
+            padding: 0.5rem 1rem;
+            border: 1px solid #007185;
+            background: white;
+            color: #007185;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        `;
+        
+        // Add hover effect
+        alternatesButton.addEventListener('mouseenter', () => {
+            alternatesButton.style.backgroundColor = '#f0f8ff';
+        });
+        alternatesButton.addEventListener('mouseleave', () => {
+            alternatesButton.style.backgroundColor = 'white';
+        });
+        
+        // Add click handler
+        alternatesButton.addEventListener('click', handleAddAlternatesClick);
+        
+        // Strategy 1: Place next to Add Item button
+        if (addItemButton) {
+            log('Placing button next to Add Item button');
+            addItemButton.parentNode.insertBefore(alternatesButton, addItemButton.nextSibling);
+            log('Add Alternates button added successfully next to Add Item button');
+            return;
+        }
+        
+        // Strategy 2: Place in the same container as ASIN input
+        const inputContainer = asinInput.closest('.b-flex') || 
+                              asinInput.closest('.b-form') || 
+                              asinInput.closest('div');
+        
+        if (inputContainer) {
+            log('Placing button in input container');
+            
+            // Create a wrapper div for better positioning
+            const buttonWrapper = document.createElement('div');
+            buttonWrapper.style.cssText = 'margin-top: 0.5rem; text-align: left;';
+            buttonWrapper.appendChild(alternatesButton);
+            
+            inputContainer.appendChild(buttonWrapper);
+            log('Add Alternates button added to input container');
+            return;
+        }
+        
+        // Strategy 3: Place after ASIN input directly
+        log('Placing button directly after ASIN input');
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'margin-top: 0.5rem;';
+        wrapper.appendChild(alternatesButton);
+        
+        asinInput.parentNode.insertBefore(wrapper, asinInput.nextSibling);
+        log('Add Alternates button added after ASIN input');
+        
+        log('=== Button Placement Complete ===');
     }
     
     // Add the button near the specified input element
