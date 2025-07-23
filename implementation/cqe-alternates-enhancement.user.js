@@ -2818,6 +2818,19 @@ Return top 8 products ranked by suitability as JSON array.
     function storeRequirementResponse(questionIndex, response) {
         const sanitizedResponse = INPUT_HANDLERS.sanitize(response);
         
+        // Ensure requirements object is initialized
+        if (!enhancedConversationState.requirements) {
+            enhancedConversationState.requirements = {
+                useCase: '',
+                mustHaveFeatures: [],
+                priceRange: null,
+                brandPreferences: [],
+                brandExclusions: [],
+                technicalSpecs: [],
+                keywords: []
+            };
+        }
+        
         switch (questionIndex) {
             case 0: // Use case
                 enhancedConversationState.requirements.useCase = sanitizedResponse;
@@ -3781,7 +3794,15 @@ Return top 8 products ranked by suitability as JSON array.
         enhancedConversationState = {
             step: 'WILLINGNESS_CHECK',
             productData: productData,
-            requirements: null,
+            requirements: {
+                useCase: '',
+                mustHaveFeatures: [],
+                priceRange: null,
+                brandPreferences: [],
+                brandExclusions: [],
+                technicalSpecs: [],
+                keywords: []
+            },
             selectedAlternates: [],
             conversationHistory: []
         };
