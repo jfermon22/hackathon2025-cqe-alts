@@ -193,13 +193,13 @@
         }
     }
     
-    // Create modal HTML structure
+    // Create modal HTML structure with POC functionality
     function createModal() {
         const modalHtml = `
             <div id="cqe-alternates-modal" class="cqe-modal-overlay" style="display: none;">
                 <div class="cqe-modal-content">
                     <div class="cqe-modal-header">
-                        <h3>Add Alternate Products</h3>
+                        <h3>Add Alternate ASINs</h3>
                         <button class="cqe-modal-close" type="button">&times;</button>
                     </div>
                     
@@ -208,65 +208,515 @@
                             <!-- Product context will be inserted here -->
                         </div>
                         
-                        <div class="cqe-chat-container">
-                        <div id="cqe-chat-messages" class="cqe-chat-messages">
-                            <div class="chat-message assistant">
-                                <strong>Assistant:</strong> I'll help you find suitable alternate products. Let me start by asking: would you be willing to accept alternate ASINs for this request? This can help you get better pricing and availability options.
+                        <!-- Manual ASIN Input Section -->
+                        <div class="cqe-form-group">
+                            <div class="cqe-section-header">Manual Alternate ASIN Input <span id="cqe-asin-counter" class="cqe-asin-counter">(0/3)</span></div>
+                            <div class="cqe-input-group">
+                                <input type="text" id="cqe-asin-input" class="b-form-control" placeholder="Enter ASIN (10-character alphanumeric)" maxlength="10" />
+                                <button id="cqe-add-asin-btn" class="b-button">Add ASIN</button>
+                            </div>
+                            <div id="cqe-asin-error" class="cqe-error" style="display: none;"></div>
+                            <div id="cqe-limit-warning" class="cqe-limit-warning">
+                                You can only add a maximum of 3 total alternates (manual + selected). Remove some items to add more.
+                            </div>
+                            <ul class="cqe-asin-list" id="cqe-asin-list"></ul>
+                        </div>
+
+                        <!-- Selected Alternates Display -->
+                        <div class="cqe-form-group" id="cqe-selected-alternates-display" style="display: none;">
+                            <div class="cqe-section-header">Selected Suggested Alternates</div>
+                            <ul class="cqe-asin-list" id="cqe-selected-alternates-list"></ul>
+                        </div>
+
+                        <!-- Alternates Information Form -->
+                        <div class="cqe-form-group">
+                            <div class="cqe-section-header">Alternates Information Form</div>
+                            <p>Providing additional information about your intent and key attributes of your requested product will help improve suppliers' ability to respond with potential alternates.</p>
+
+                            <div class="cqe-form-group">
+                                <label for="cqe-intent">Customer Usage Intent</label>
+                                <textarea id="cqe-intent" class="b-form-control" rows="2" placeholder="Describe what the product is intended for..."></textarea>
+                            </div>
+
+                            <div class="cqe-form-group">
+                                <label for="cqe-must-have">Must-Have Attributes</label>
+                                <textarea id="cqe-must-have" class="b-form-control" rows="2" placeholder="Critical product features required (e.g., 256 GB of storage space, USB-C connector)"></textarea>
+                            </div>
+
+                            <div class="cqe-form-group">
+                                <label for="cqe-preferred">Preferred Attributes</label>
+                                <textarea id="cqe-preferred" class="b-form-control" rows="2" placeholder="Nice-to-have characteristics or preferences (e.g., Black color preferred, but blue is acceptable)"></textarea>
+                            </div>
+
+                            <div class="cqe-warning">
+                                ⚠️ Please do not include any personal identifying information. Any PII will be automatically removed and not sent to suppliers.
                             </div>
                         </div>
-                        
-                        <div class="cqe-chat-input-container">
-                            <input type="text" 
-                                   id="cqe-chat-input" 
-                                   class="b-form-control" 
-                                   placeholder="Type your response..."
-                                   style="flex: 1;">
-                            <button id="cqe-chat-send" class="b-button">Send</button>
+
+                        <!-- Suggested Alternates Section -->
+                        <div id="cqe-suggested-alternates" class="cqe-alternates-section" style="display: none;"></div>
+
+                        <!-- Action Buttons -->
+                        <div class="cqe-form-group">
+                            <button id="cqe-suggest-btn" class="b-button b-outline">Suggest Alternates</button>
+                            <button id="cqe-submit-btn" class="b-button">Submit</button>
+                            <button id="cqe-cancel-alternates" class="b-button b-outline">Cancel</button>
                         </div>
-                    </div>
-                    
-                    <div id="cqe-manual-asin-section" class="cqe-section" style="display:none;">
-                        <h4>Add ASINs Manually</h4>
-                        <div class="cqe-manual-input">
-                            <input type="text" 
-                                   id="cqe-manual-asin" 
-                                   class="b-form-control" 
-                                   placeholder="Enter ASIN (e.g., B08N5WRWNW) or Amazon URL">
-                            <button id="cqe-add-asin" class="b-button b-outline">Add ASIN</button>
-                        </div>
-                        <div class="input-help" style="font-size: 0.8rem; color: #666; margin-bottom: 1rem;">
-                            You can enter a 10-character ASIN or paste an Amazon product URL
-                        </div>
-                        <div id="cqe-manual-asins-list"></div>
-                    </div>
-                    
-                    <div id="cqe-alternates-selection" class="cqe-section" style="display:none;">
-                        <h4>Select Suitable Alternates</h4>
-                        <div id="cqe-suggested-alternates"></div>
-                    </div>
-                    
-                    <div class="cqe-modal-footer">
-                        <button id="cqe-cancel-alternates" class="b-button b-outline">Cancel</button>
-                        <button id="cqe-confirm-alternates" class="b-button" disabled>
-                            Add Selected Alternates
-                        </button>
                     </div>
                 </div>
             </div>
         `;
         
         // Insert modal into DOM
-        const modalRoot = document.querySelector(CQE_SELECTORS.modalRoot) || document.body;
-        modalRoot.insertAdjacentHTML('beforeend', modalHtml);
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = document.querySelector('#cqe-alternates-modal');
         
-        // Add CSS styles
-        addModalStyles();
+        // Initialize modal functionality
+        initializeModalFunctionality();
         
-        // Setup modal event handlers
-        setupModalEventHandlers();
+        return modal;
+    }
+    
+    // POC Modal Functionality - Initialize the enhanced modal with 3-item limit
+    function initializeModalFunctionality() {
+        // Constants
+        const ASIN_REGEX = /^[A-Z0-9]{10}$/i;
+        const MAX_ALTERNATES = 3;
         
-        log('Modal created and initialized');
-        return document.querySelector('#cqe-alternates-modal');
+        // State management - keep manual and selected alternates separate
+        const manualAsins = new Set();
+        const selectedAlternates = new Set();
+        
+        // DOM elements
+        const asinInput = document.getElementById('cqe-asin-input');
+        const asinList = document.getElementById('cqe-asin-list');
+        const selectedAlternatesList = document.getElementById('cqe-selected-alternates-list');
+        const selectedAlternatesDisplay = document.getElementById('cqe-selected-alternates-display');
+        const asinError = document.getElementById('cqe-asin-error');
+        const asinCounter = document.getElementById('cqe-asin-counter');
+        const addAsinBtn = document.getElementById('cqe-add-asin-btn');
+        const limitWarning = document.getElementById('cqe-limit-warning');
+        
+        // Mock product data for demonstration
+        const mockProducts = [
+            {
+                asin: 'ALT1234567',
+                name: '256GB External SSD Drive',
+                description: 'Fast USB-C portable storage with metal casing',
+                image: 'https://via.placeholder.com/60x60/4CAF50/white?text=SSD'
+            },
+            {
+                asin: 'ALT2345678',
+                name: '512GB USB Flash Drive',
+                description: 'Compact USB 3.0 flash drive, waterproof design',
+                image: 'https://via.placeholder.com/60x60/2196F3/white?text=USB'
+            },
+            {
+                asin: 'ALT3456789',
+                name: 'Premium Black Ink Cartridge',
+                description: 'Compatible with HP printers, high-yield',
+                image: 'https://via.placeholder.com/60x60/FF9800/white?text=INK'
+            },
+            {
+                asin: 'ALT4567890',
+                name: 'Wireless Ergonomic Mouse',
+                description: 'Battery-efficient with USB-C charging',
+                image: 'https://via.placeholder.com/60x60/9C27B0/white?text=MOUSE'
+            }
+        ];
+
+        // Enhanced PII redaction patterns
+        function stripPII(text) {
+            if (!text) return text;
+            
+            return text
+                // Email addresses
+                .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[REDACTED EMAIL]')
+                // Phone numbers (various formats)
+                .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[REDACTED PHONE]')
+                .replace(/\b\(\d{3}\)\s?\d{3}[-.\s]?\d{4}\b/g, '[REDACTED PHONE]')
+                .replace(/\b\+\d{1,3}[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[REDACTED PHONE]')
+                // Social Security Numbers
+                .replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED SSN]')
+                // Credit card numbers (basic pattern)
+                .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[REDACTED CARD]');
+        }
+
+        // Get total count of alternates
+        function getTotalAlternatesCount() {
+            return manualAsins.size + selectedAlternates.size;
+        }
+
+        // Update the counter display and UI state
+        function updateCounterAndUI() {
+            if (!asinCounter) return; // Guard clause
+            
+            const totalCount = getTotalAlternatesCount();
+            const isAtLimit = totalCount >= MAX_ALTERNATES;
+            
+            // Update counter text
+            asinCounter.textContent = `(${totalCount}/${MAX_ALTERNATES})`;
+            
+            // Update counter styling
+            if (isAtLimit) {
+                asinCounter.classList.add('at-limit');
+            } else {
+                asinCounter.classList.remove('at-limit');
+            }
+            
+            // Update input and button state
+            if (asinInput) asinInput.disabled = isAtLimit;
+            if (addAsinBtn) addAsinBtn.disabled = isAtLimit;
+            
+            // Show/hide limit warning
+            if (limitWarning) {
+                if (isAtLimit) {
+                    limitWarning.style.display = 'block';
+                } else {
+                    limitWarning.style.display = 'none';
+                }
+            }
+            
+            // Update alternate tiles if they exist
+            const tiles = document.querySelectorAll('.alternate-tile:not(.selected)');
+            tiles.forEach(tile => {
+                if (isAtLimit) {
+                    tile.style.opacity = '0.5';
+                    tile.style.cursor = 'not-allowed';
+                } else {
+                    tile.style.opacity = '1';
+                    tile.style.cursor = 'pointer';
+                }
+            });
+        }
+
+        // Show error message
+        function showError(message) {
+            if (!asinError) return;
+            asinError.textContent = message;
+            asinError.style.display = 'block';
+            setTimeout(() => {
+                asinError.style.display = 'none';
+            }, 5000);
+        }
+
+        // Add manual ASIN to the list
+        function addASIN() {
+            if (!asinInput) return;
+            
+            const value = asinInput.value.trim().toUpperCase();
+            
+            // Check limit first
+            if (getTotalAlternatesCount() >= MAX_ALTERNATES) {
+                showError(`Maximum of ${MAX_ALTERNATES} total alternates allowed. Remove some items to add more.`);
+                return false;
+            }
+            
+            // Validate ASIN format
+            if (!ASIN_REGEX.test(value)) {
+                showError('Invalid ASIN format. Must be exactly 10 alphanumeric characters.');
+                return false;
+            }
+            
+            // Check for duplicates in both manual and selected alternates
+            if (manualAsins.has(value) || selectedAlternates.has(value)) {
+                showError('ASIN already exists in the list. Duplicates are not allowed.');
+                return false;
+            }
+            
+            // Add to manual ASINs set
+            manualAsins.add(value);
+            
+            // Create list item for manual ASIN
+            if (asinList) {
+                const li = document.createElement('li');
+                li.className = 'manual-entry';
+                li.innerHTML = `
+                    <div>
+                        <span class="asin-text">${value}</span>
+                        <span class="cqe-asin-type-label manual-label">Manual Entry</span>
+                    </div>
+                    <button class="remove-btn" onclick="window.cqeRemoveManualASIN('${value}')">Remove</button>
+                `;
+                
+                asinList.appendChild(li);
+            }
+            
+            asinInput.value = '';
+            
+            // Update counter and UI state
+            updateCounterAndUI();
+            
+            return true;
+        }
+
+        // Remove manual ASIN from the list
+        window.cqeRemoveManualASIN = function(asin) {
+            manualAsins.delete(asin);
+            
+            // Remove from DOM
+            if (asinList) {
+                const listItems = asinList.querySelectorAll('li.manual-entry');
+                listItems.forEach(li => {
+                    if (li.querySelector('.asin-text').textContent === asin) {
+                        asinList.removeChild(li);
+                    }
+                });
+            }
+            
+            // Update counter and UI state
+            updateCounterAndUI();
+        };
+
+        // Update the selected alternates display
+        function updateSelectedAlternatesDisplay() {
+            if (!selectedAlternatesDisplay || !selectedAlternatesList) return;
+            
+            if (selectedAlternates.size === 0) {
+                selectedAlternatesDisplay.style.display = 'none';
+                return;
+            }
+            
+            selectedAlternatesDisplay.style.display = 'block';
+            selectedAlternatesList.innerHTML = '';
+            
+            selectedAlternates.forEach(asin => {
+                const product = mockProducts.find(p => p.asin === asin);
+                const li = document.createElement('li');
+                li.className = 'selected-alternate';
+                li.innerHTML = `
+                    <div>
+                        <span class="asin-text">${asin}</span>
+                        <span class="cqe-asin-type-label alternate-label">Selected Alternate</span>
+                        ${product ? `<div style="font-size: 0.8rem; color: #666; margin-top: 2px;">${product.name}</div>` : ''}
+                    </div>
+                    <button class="remove-btn" onclick="window.cqeRemoveSelectedAlternate('${asin}')">Remove</button>
+                `;
+                selectedAlternatesList.appendChild(li);
+            });
+        }
+
+        // Remove selected alternate
+        window.cqeRemoveSelectedAlternate = function(asin) {
+            selectedAlternates.delete(asin);
+            updateSelectedAlternatesDisplay();
+            
+            // Update the tile selection state
+            const tiles = document.querySelectorAll('.alternate-tile');
+            tiles.forEach(tile => {
+                if (tile.dataset.asin === asin) {
+                    tile.classList.remove('selected');
+                }
+            });
+            
+            // Update counter and UI state
+            updateCounterAndUI();
+        };
+
+        // Generate and display suggested alternates
+        function suggestAlternates() {
+            const mustHave = document.getElementById('cqe-must-have')?.value.trim() || '';
+            const preferred = document.getElementById('cqe-preferred')?.value.trim() || '';
+            const intent = document.getElementById('cqe-intent')?.value.trim() || '';
+            
+            if (!mustHave && !preferred && !intent) {
+                showError('Please provide at least some information in the form fields to generate suggestions.');
+                return;
+            }
+            
+            // Mock search query generation (future: integrate with Bedrock)
+            const searchContext = {
+                intent: stripPII(intent),
+                mustHave: stripPII(mustHave),
+                preferred: stripPII(preferred)
+            };
+            
+            log('Generating search query with context:', searchContext);
+            
+            // Mock product search results (future: integrate with Amazon Product Search API)
+            const results = mockProducts.slice(0, 4);
+            
+            // Display results
+            const container = document.getElementById('cqe-suggested-alternates');
+            if (!container) return;
+            
+            container.style.display = 'block';
+            container.innerHTML = `
+                <div class="cqe-section-header">Select Suggested Alternates</div>
+                <p>Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used):</p>
+            `;
+            
+            results.forEach(product => {
+                const tile = document.createElement('div');
+                tile.className = 'alternate-tile';
+                tile.dataset.asin = product.asin;
+                
+                // Check if already selected
+                if (selectedAlternates.has(product.asin)) {
+                    tile.classList.add('selected');
+                }
+                
+                tile.onclick = () => toggleAlternateSelection(product.asin, tile);
+                
+                tile.innerHTML = `
+                    <img src="${product.image}" alt="${product.name}" />
+                    <div class="product-info">
+                        <div class="product-name">${product.name}</div>
+                        <div class="product-description">${product.description}</div>
+                        <div class="product-asin">ASIN: ${product.asin}</div>
+                    </div>
+                `;
+                
+                container.appendChild(tile);
+            });
+            
+            // Update UI state for tiles
+            updateCounterAndUI();
+        }
+
+        // Toggle alternate selection
+        function toggleAlternateSelection(asin, tile) {
+            // Check for duplicates across both lists
+            if (manualAsins.has(asin)) {
+                showError('This ASIN is already in your manual entries. Cannot select as alternate.');
+                return;
+            }
+            
+            if (tile.classList.contains('selected')) {
+                // Deselecting - always allowed
+                tile.classList.remove('selected');
+                selectedAlternates.delete(asin);
+            } else {
+                // Selecting - check limit
+                if (getTotalAlternatesCount() >= MAX_ALTERNATES) {
+                    showError(`Maximum of ${MAX_ALTERNATES} total alternates allowed. Remove some items to add more.`);
+                    return;
+                }
+                
+                tile.classList.add('selected');
+                selectedAlternates.add(asin);
+            }
+            
+            updateSelectedAlternatesDisplay();
+            updateCounterAndUI();
+        }
+
+        // Submit the form
+        function submitForm() {
+            // Prepare submission payload with clear separation
+            const payload = {
+                manualAsins: Array.from(manualAsins),
+                selectedAlternates: Array.from(selectedAlternates),
+                allAsins: [...Array.from(manualAsins), ...Array.from(selectedAlternates)],
+                intent: stripPII(document.getElementById('cqe-intent')?.value.trim() || ''),
+                mustHave: stripPII(document.getElementById('cqe-must-have')?.value.trim() || ''),
+                preferred: stripPII(document.getElementById('cqe-preferred')?.value.trim() || '')
+            };
+            
+            // Validate payload
+            if (payload.allAsins.length === 0) {
+                showError('Please add at least one ASIN (manual or selected alternate) before submitting.');
+                return;
+            }
+            
+            if (!payload.intent && !payload.mustHave && !payload.preferred) {
+                showError('Please provide at least some information in the form fields.');
+                return;
+            }
+            
+            // Future integration points:
+            // 1. Call Bedrock agent to generate Amazon search query
+            // 2. Call Amazon Product Search API with generated query
+            // 3. Call Bedrock agent to summarize user input for suppliers
+            
+            log('Submitting payload to downstream services:', payload);
+            
+            // Create detailed summary for user
+            let summary = 'Form submitted successfully!\n\n';
+            summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
+            summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
+            summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
+            summary += 'Next steps:\n- Bedrock agent will process your requirements\n- Product search will find additional matches\n- Suppliers will receive summarized context';
+            
+            alert(summary);
+            
+            // Close modal after successful submission
+            closeModal();
+        }
+
+        // Reset form to initial state
+        function resetForm() {
+            manualAsins.clear();
+            selectedAlternates.clear();
+            if (asinList) asinList.innerHTML = '';
+            if (selectedAlternatesList) selectedAlternatesList.innerHTML = '';
+            if (selectedAlternatesDisplay) selectedAlternatesDisplay.style.display = 'none';
+            
+            const intent = document.getElementById('cqe-intent');
+            const mustHave = document.getElementById('cqe-must-have');
+            const preferred = document.getElementById('cqe-preferred');
+            const suggestedAlternates = document.getElementById('cqe-suggested-alternates');
+            
+            if (intent) intent.value = '';
+            if (mustHave) mustHave.value = '';
+            if (preferred) preferred.value = '';
+            if (suggestedAlternates) suggestedAlternates.style.display = 'none';
+            if (asinInput) asinInput.value = '';
+            
+            // Reset UI state
+            updateCounterAndUI();
+        }
+
+        // Event listeners
+        if (addAsinBtn) {
+            addAsinBtn.addEventListener('click', addASIN);
+        }
+
+        if (asinInput) {
+            // Add Enter key support for ASIN input
+            asinInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addASIN();
+                }
+            });
+
+            // Auto-format ASIN input to uppercase
+            asinInput.addEventListener('input', function(e) {
+                e.target.value = e.target.value.toUpperCase();
+            });
+        }
+
+        // Suggest alternates button
+        const suggestBtn = document.getElementById('cqe-suggest-btn');
+        if (suggestBtn) {
+            suggestBtn.addEventListener('click', suggestAlternates);
+        }
+
+        // Submit button
+        const submitBtn = document.getElementById('cqe-submit-btn');
+        if (submitBtn) {
+            submitBtn.addEventListener('click', submitForm);
+        }
+
+        // Cancel button
+        const cancelBtn = document.getElementById('cqe-cancel-alternates');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', closeModal);
+        }
+
+        // Close button
+        const closeBtn = document.querySelector('.cqe-modal-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeModal);
+        }
+
+        // Initialize counter on page load
+        updateCounterAndUI();
+        
+        // Reset form when modal is opened
+        resetForm();
+        
+        log('POC Modal functionality initialized successfully');
     }
     
     // Add CSS styles for the modal
@@ -481,6 +931,201 @@
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     font-size: 0.9rem;
+                }
+                
+                /* POC Modal Functionality Styles */
+                .cqe-form-group {
+                    margin: 1rem 1.5rem;
+                }
+                
+                .cqe-section-header {
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    margin-bottom: 10px;
+                    color: #232f3e;
+                }
+                
+                .cqe-input-group {
+                    display: flex;
+                    gap: 10px;
+                    align-items: flex-start;
+                    margin-bottom: 10px;
+                }
+                
+                .cqe-input-group .b-form-control {
+                    flex: 1;
+                }
+                
+                .cqe-input-group .b-button {
+                    white-space: nowrap;
+                }
+                
+                /* ASIN List styling */
+                .cqe-asin-list {
+                    list-style: none;
+                    padding: 0;
+                    margin-top: 10px;
+                }
+                
+                .cqe-asin-list li {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 8px;
+                    padding: 8px 12px;
+                    background-color: #f8f9fa;
+                    border-radius: 4px;
+                    border: 1px solid #e9ecef;
+                }
+                
+                .cqe-asin-list li.manual-entry {
+                    border-left: 4px solid #ff9900;
+                }
+                
+                .cqe-asin-list li.selected-alternate {
+                    border-left: 4px solid #28a745;
+                    background-color: #f8fff9;
+                }
+                
+                .cqe-asin-list li .asin-text {
+                    font-family: monospace;
+                    font-weight: 600;
+                    color: #232f3e;
+                }
+                
+                .cqe-asin-type-label {
+                    font-size: 0.7rem;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    margin-left: 8px;
+                    font-weight: 500;
+                }
+                
+                .manual-label {
+                    background-color: #fff3cd;
+                    color: #856404;
+                }
+                
+                .alternate-label {
+                    background-color: #d4edda;
+                    color: #155724;
+                }
+                
+                /* Counter and warnings */
+                .cqe-asin-counter {
+                    font-size: 0.9rem;
+                    color: #666;
+                    font-weight: normal;
+                }
+                
+                .cqe-asin-counter.at-limit {
+                    color: #dc3545;
+                    font-weight: 600;
+                }
+                
+                .cqe-limit-warning {
+                    background-color: #fff3cd;
+                    border: 1px solid #ffeaa7;
+                    color: #856404;
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    font-size: 0.85rem;
+                    margin-top: 10px;
+                    display: none;
+                }
+                
+                .cqe-error {
+                    color: #dc3545;
+                    font-size: 0.9rem;
+                    margin-top: 5px;
+                    padding: 8px 12px;
+                    background-color: #f8d7da;
+                    border: 1px solid #f5c6cb;
+                    border-radius: 4px;
+                }
+                
+                .cqe-warning {
+                    color: #856404;
+                    background-color: #fff3cd;
+                    border: 1px solid #ffeaa7;
+                    padding: 10px 12px;
+                    border-radius: 4px;
+                    font-size: 0.9rem;
+                    margin-top: 15px;
+                }
+                
+                .remove-btn {
+                    background-color: #dc3545;
+                    color: white;
+                    padding: 4px 8px;
+                    font-size: 0.8rem;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                }
+                
+                .remove-btn:hover {
+                    background-color: #c82333;
+                }
+                
+                /* Alternates section */
+                .cqe-alternates-section {
+                    margin: 1rem 1.5rem;
+                    padding-top: 20px;
+                    border-top: 1px solid #e9ecef;
+                }
+                
+                .alternate-tile {
+                    display: flex;
+                    align-items: center;
+                    border: 2px solid #e9ecef;
+                    border-radius: 6px;
+                    margin-bottom: 10px;
+                    padding: 12px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    background: white;
+                }
+                
+                .alternate-tile:hover {
+                    border-color: #ff9900;
+                    background-color: #fff8f0;
+                }
+                
+                .alternate-tile img {
+                    width: 60px;
+                    height: 60px;
+                    object-fit: cover;
+                    margin-right: 15px;
+                    border-radius: 4px;
+                    border: 1px solid #ddd;
+                }
+                
+                .alternate-tile.selected {
+                    background-color: #fff8f0;
+                    border-color: #ff9900;
+                }
+                
+                .alternate-tile .product-info {
+                    flex: 1;
+                }
+                
+                .alternate-tile .product-name {
+                    font-weight: 600;
+                    margin-bottom: 4px;
+                    color: #232f3e;
+                }
+                
+                .alternate-tile .product-description {
+                    color: #666;
+                    margin-bottom: 4px;
+                    font-size: 0.9rem;
+                }
+                
+                .alternate-tile .product-asin {
+                    font-size: 0.8rem;
+                    color: #999;
+                    font-family: monospace;
                 }
             </style>
         `;
@@ -1208,12 +1853,17 @@
         // Update product context display
         const contextDiv = document.querySelector('#cqe-product-context');
         if (contextDiv && productData) {
-            contextDiv.innerHTML = `
-                <strong>Product:</strong> ${productData.name}<br>
-                <strong>ASIN:</strong> ${productData.asin}<br>
-                <strong>Quantity:</strong> ${productData.quantity}<br>
-                <strong>Current Price:</strong> $${productData.unitPrice}/unit
-            `;
+            let contextHTML = `<strong>Product:</strong> ${productData.name || productData.asin || 'Product'}<br>`;
+            
+            if (productData.asin) {
+                contextHTML += `<strong>ASIN:</strong> ${productData.asin}<br>`;
+            }
+            
+            if (productData.quantity) {
+                contextHTML += `<strong>Quantity:</strong> ${productData.quantity}<br>`;
+            }
+            
+            contextDiv.innerHTML = contextHTML;
         }
         
         // Show modal
@@ -1817,12 +2467,17 @@
         // Update product context display
         const contextDiv = document.querySelector('#cqe-product-context');
         if (contextDiv && productData) {
-            contextDiv.innerHTML = `
-                <strong>Product:</strong> ${productData.name}<br>
-                <strong>ASIN:</strong> ${productData.asin}<br>
-                <strong>Quantity:</strong> ${productData.quantity}<br>
-                <strong>Current Price:</strong> $${productData.unitPrice}/unit
-            `;
+            let contextHTML = `<strong>Product:</strong> ${productData.name || productData.asin || 'Product'}<br>`;
+            
+            if (productData.asin) {
+                contextHTML += `<strong>ASIN:</strong> ${productData.asin}<br>`;
+            }
+            
+            if (productData.quantity) {
+                contextHTML += `<strong>Quantity:</strong> ${productData.quantity}<br>`;
+            }
+            
+            contextDiv.innerHTML = contextHTML;
         }
         
         // Show modal
@@ -4040,7 +4695,7 @@ Return top 8 products ranked by suitability as JSON array.
         }, 2000);
     }
     
-    // Open modal with product context
+    // Open modal with product context - Updated for POC functionality
     function openModal(productData) {
         let modal = document.querySelector('#cqe-alternates-modal');
         
@@ -4049,32 +4704,34 @@ Return top 8 products ranked by suitability as JSON array.
             modal = createModal();
         }
         
-        // Reset conversation state
-        resetConversationState(productData);
-        
         // Update product context
         const contextDiv = document.querySelector('#cqe-product-context');
         if (contextDiv && productData) {
-            contextDiv.innerHTML = `
-                <strong>Product:</strong> ${productData.name}<br>
-                <strong>ASIN:</strong> ${productData.asin}<br>
-                <strong>Quantity:</strong> ${productData.quantity}<br>
-                <strong>Current Price:</strong> $${productData.unitPrice}/unit
-            `;
+            let contextHTML = `<strong>Product:</strong> ${productData.name || 'Product'}<br>`;
+            
+            if (productData.asin) {
+                contextHTML += `<strong>ASIN:</strong> ${productData.asin}<br>`;
+            }
+            
+            if (productData.quantity) {
+                contextHTML += `<strong>Quantity:</strong> ${productData.quantity}<br>`;
+            }
+            
+            contextDiv.innerHTML = contextHTML;
         }
         
         // Show modal
         modal.style.display = 'flex';
         
-        // Focus on chat input
+        // Focus on ASIN input instead of chat input
         setTimeout(() => {
-            const chatInput = document.querySelector('#cqe-chat-input');
-            if (chatInput) {
-                chatInput.focus();
+            const asinInput = document.querySelector('#cqe-asin-input');
+            if (asinInput) {
+                asinInput.focus();
             }
         }, 100);
         
-        log('Modal opened for product:', productData);
+        log('Modal opened for product with POC functionality:', productData);
     }
     
     // Close modal
@@ -4086,28 +4743,118 @@ Return top 8 products ranked by suitability as JSON array.
         }
     }
     
-    // Handle "Add Alternates" button click
+    // Handle "Add Alternates" button click - FIXED VERSION
     function handleAddAlternatesClick(event) {
         event.preventDefault();
+        log('🎯 Add Alternates button clicked!');
         
-        const productKey = event.target.getAttribute('data-product-key');
-        const rowElement = document.querySelector(`tr[data-key="${productKey}"]`);
+        // Try to get ASIN from input field
+        const asinInput = document.querySelector('#add-asin-or-isbn-form') || 
+                         document.querySelector('input[type="text"]');
         
-        if (!rowElement) {
-            log('Error: Could not find product row for key:', productKey);
+        if (!asinInput) {
+            showError('Could not find ASIN input field on the page.');
             return;
         }
         
-        const productData = extractProductData(rowElement);
-        if (!productData) {
-            log('Error: Could not extract product data');
+        const asinValue = asinInput.value.trim();
+        if (!asinValue) {
+            showError('ASIN or ISBN required');
+            // Focus on the ASIN input to guide user
+            asinInput.focus();
             return;
         }
         
-        log('Add Alternates clicked for product:', productData);
+        // Validate ASIN format
+        const validation = ASIN_VALIDATION.validate(asinValue);
+        if (!validation.valid) {
+            showError(`Invalid ASIN format. ${validation.error}`);
+            asinInput.focus();
+            return;
+        }
+        
+        // Clear any existing errors since validation passed
+        clearError();
+        
+        const asin = validation.asin;
+        
+        // Get quantity if available
+        const qtyInput = document.querySelector('#item-quantity') || 
+                        document.querySelector('input[type="number"]');
+        const quantity = qtyInput?.value || '';
+        
+        // Create product data object with real customer data
+        const productData = {
+            id: 'input-' + Date.now(),
+            asin: asin,
+            name: asin, // Use ASIN as name since we don't have product name from input
+            quantity: quantity,
+            source: 'asin-input'
+        };
+        
+        log('Opening modal with customer product data:', productData);
         
         // Open modal interface
         openModal(productData);
+    }
+    
+    // Helper function to show error messages matching CQE styling
+    function showError(message) {
+        // Find the ASIN input field
+        const asinInput = document.querySelector('#add-asin-or-isbn-form');
+        if (!asinInput) {
+            log('Could not find ASIN input field for error display');
+            return;
+        }
+        
+        // Add error class to input field (matches CQE pattern)
+        asinInput.classList.add('is-error');
+        asinInput.setAttribute('aria-invalid', 'true');
+        
+        // Find or create error span element
+        let errorSpan = document.querySelector('#add-asin-or-isbn-form-error');
+        
+        if (!errorSpan) {
+            // Create error span matching CQE pattern
+            errorSpan = document.createElement('span');
+            errorSpan.id = 'add-asin-or-isbn-form-error';
+            errorSpan.setAttribute('role', 'alert');
+            errorSpan.className = 'b-error is-error';
+            
+            // Insert after the input field
+            asinInput.parentNode.insertBefore(errorSpan, asinInput.nextSibling);
+        }
+        
+        // Set error message and make visible
+        errorSpan.textContent = message;
+        errorSpan.classList.add('is-error');
+        
+        // Update aria-describedby on input
+        asinInput.setAttribute('aria-describedby', 'add-asin-or-isbn-form-error');
+        
+        // Hide error after 5 seconds
+        setTimeout(() => {
+            clearError();
+        }, 5000);
+        
+        log('Error shown to user:', message);
+    }
+    
+    // Helper function to clear error state
+    function clearError() {
+        const asinInput = document.querySelector('#add-asin-or-isbn-form');
+        const errorSpan = document.querySelector('#add-asin-or-isbn-form-error');
+        
+        if (asinInput) {
+            asinInput.classList.remove('is-error');
+            asinInput.removeAttribute('aria-invalid');
+            asinInput.removeAttribute('aria-describedby');
+        }
+        
+        if (errorSpan) {
+            errorSpan.classList.remove('is-error');
+            errorSpan.textContent = '';
+        }
     }
     
     // Add "Add Alternates" button near the ASIN input form (enhanced with better detection)
@@ -4536,60 +5283,6 @@ Return top 8 products ranked by suitability as JSON array.
         }
     }
     
-    // Handle "Add Alternates" button click (updated for ASIN input approach)
-    function handleAddAlternatesClick(event) {
-        event.preventDefault();
-        
-        // Get ASIN from the input field
-        const asinInput = document.querySelector(CQE_SELECTORS.asinInput) || 
-                         document.querySelector('#add-asin-or-isbn-form');
-        
-        if (!asinInput) {
-            log('Error: Could not find ASIN input field');
-            alert('Could not find ASIN input field');
-            return;
-        }
-        
-        const asin = asinInput.value.trim();
-        if (!asin) {
-            log('Error: No ASIN entered');
-            alert('Please enter an ASIN first');
-            return;
-        }
-        
-        // Validate ASIN
-        const validation = ASIN_VALIDATION.validate(asin);
-        if (!validation.valid) {
-            log('Error: Invalid ASIN format:', validation.error);
-            alert(`Invalid ASIN: ${validation.error}`);
-            return;
-        }
-        
-        // Get quantity from quantity input
-        const quantityInput = document.querySelector('#item-quantity') || 
-                             document.querySelector('input[type="number"]');
-        const quantity = quantityInput ? quantityInput.value || '1' : '1';
-        
-        // Create product data object
-        const productData = {
-            id: `input-${Date.now()}`,
-            asin: validation.asin,
-            name: `Product ${validation.asin}`,
-            image: '',
-            quantity: quantity,
-            totalPrice: '',
-            unitPrice: '',
-            seller: '',
-            merchantName: '',
-            source: 'asin-input'
-        };
-        
-        log('Add Alternates clicked for ASIN input:', productData);
-        
-        // Open modal interface
-        openModal(productData);
-    }
-    
     // Manual debug function - can be called from console
     window.debugCQEAlternates = function() {
         console.log('=== CQE Alternates Debug Info (ASIN Input Approach) ===');
@@ -4747,8 +5440,8 @@ Return top 8 products ranked by suitability as JSON array.
             log('Performing initialization...');
             
             try {
-                // Add modal HTML to page
-                addModalHTML();
+                // Add CSS styles
+                addModalStyles();
                 
                 // Add button near ASIN input
                 addAlternatesButton();

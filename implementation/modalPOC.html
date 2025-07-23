@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Alternate ASIN Modal</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f5f5f5;
+    }
+    .modal {
+      background: white;
+      padding: 20px;
+      max-width: 600px;
+      margin: 50px auto;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .asin-list {
+      list-style: none;
+      padding: 0;
+      margin-top: 10px;
+    }
+    .asin-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      padding: 8px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border: 1px solid #e9ecef;
+    }
+    .asin-list li .asin-text {
+      font-family: monospace;
+      font-weight: 600;
+    }
+    .asin-list li.manual-entry {
+      border-left: 4px solid #0073e6;
+    }
+    .asin-list li.selected-alternate {
+      border-left: 4px solid #28a745;
+      background-color: #f8fff9;
+    }
+    .asin-type-label {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-left: 8px;
+      font-weight: 500;
+    }
+    .manual-label {
+      background-color: #e3f2fd;
+      color: #1976d2;
+    }
+    .alternate-label {
+      background-color: #e8f5e8;
+      color: #2e7d32;
+    }
+    .asin-counter {
+      font-size: 0.9rem;
+      color: #666;
+      font-weight: normal;
+    }
+    .asin-counter.at-limit {
+      color: #dc3545;
+      font-weight: 600;
+    }
+    .limit-warning {
+      background-color: #fff3cd;
+      border: 1px solid #ffeaa7;
+      color: #856404;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-top: 10px;
+      display: none;
+    }
+    .asin-counter {
+      font-size: 0.9rem;
+      color: #666;
+      font-weight: normal;
+    }
+    .asin-counter.at-limit {
+      color: #dc3545;
+      font-weight: 600;
+    }
+    .limit-warning {
+      background-color: #fff3cd;
+      border: 1px solid #ffeaa7;
+      color: #856404;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-top: 10px;
+      display: none;
+    }
+    .form-group {
+      margin: 15px 0;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 15px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 4px;
+      background-color: #0073e6;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #005bb5;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    .remove-btn {
+      background-color: #dc3545;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      margin-top: 0;
+    }
+    .remove-btn:hover {
+      background-color: #c82333;
+    }
+    .error {
+      color: #dc3545;
+      font-size: 0.9rem;
+      margin-top: 5px;
+    }
+    .warning {
+      color: #856404;
+      background-color: #fff3cd;
+      border: 1px solid #ffeaa7;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      margin-top: 15px;
+    }
+    .alternates-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e9ecef;
+    }
+    .alternate-tile {
+      display: flex;
+      align-items: center;
+      border: 2px solid #e9ecef;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .alternate-tile:hover {
+      border-color: #0073e6;
+      background-color: #f8f9fa;
+    }
+    .alternate-tile img {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      margin-right: 15px;
+      border-radius: 4px;
+    }
+    .alternate-tile.selected {
+      background-color: #e6f3ff;
+      border-color: #0073e6;
+    }
+    .alternate-tile .product-info {
+      flex: 1;
+    }
+    .alternate-tile .product-name {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .alternate-tile .product-description {
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .alternate-tile .product-asin {
+      font-size: 0.8rem;
+      color: #999;
+      font-family: monospace;
+    }
+    .section-header {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .input-group {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .input-group input {
+      flex: 1;
+    }
+    .input-group button {
+      margin-top: 0;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="modal">
+    <h2>Add Alternate ASINs</h2>
+    
+    <!-- Manual ASIN Input Section -->
+    <div class="form-group">
+      <div class="section-header">Manual Alternate ASIN Input <span id="asin-counter" class="asin-counter">(0/3)</span></div>
+      <div class="input-group">
+        <input type="text" id="asin-input" placeholder="Enter ASIN (10-character alphanumeric)" maxlength="10" />
+        <button onclick="addASIN()" id="add-asin-btn">Add ASIN</button>
+      </div>
+      <div id="asin-error" class="error" style="display: none;"></div>
+      <div id="limit-warning" class="limit-warning">
+        You can only add a maximum of 3 total alternates (manual + selected). Remove some items to add more.
+      </div>
+      <ul class="asin-list" id="asin-list"></ul>
+    </div>
+
+    <!-- Selected Alternates Display -->
+    <div class="form-group" id="selected-alternates-display" style="display: none;">
+      <div class="section-header">Selected Suggested Alternates</div>
+      <ul class="asin-list" id="selected-alternates-list"></ul>
+    </div>
+
+    <!-- Alternates Information Form -->
+    <div class="form-group">
+      <div class="section-header">Alternates Information Form</div>
+      <p>Providing additional information about your intent and key attributes of your requested product will help improve suppliers' ability to respond with potential alternates.</p>
+
+      <div class="form-group">
+        <label for="intent">Customer Usage Intent</label>
+        <textarea id="intent" rows="2" placeholder="Describe what the product is intended for..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="mustHave">Must-Have Attributes</label>
+        <textarea id="mustHave" rows="2" placeholder="Critical product features required (e.g., 256 GB of storage space, USB-C connector)"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="preferred">Preferred Attributes</label>
+        <textarea id="preferred" rows="2" placeholder="Nice-to-have characteristics or preferences (e.g., Black color preferred, but blue is acceptable)"></textarea>
+      </div>
+
+      <div class="warning">
+        ⚠️ Please do not include any personal identifying information. Any PII will be automatically removed and not sent to suppliers.
+      </div>
+    </div>
+
+    <!-- Suggested Alternates Section -->
+    <div id="suggested-alternates" class="alternates-section" style="display: none;"></div>
+
+    <!-- Action Buttons -->
+    <div class="form-group">
+      <button onclick="suggestAlternates()" id="suggest-btn">Suggest Alternates</button>
+      <button onclick="submitForm()" id="submit-btn">Submit</button>
+    </div>
+  </div>
+
+  <script>
+    // ASIN validation regex (case-insensitive)
+    const ASIN_REGEX = /^[A-Z0-9]{10}$/i;
+    const MAX_ALTERNATES = 3;
+    
+    // State management - keep manual and selected alternates separate
+    const manualAsins = new Set();
+    const selectedAlternates = new Set();
+    
+    // DOM elements
+    const asinInput = document.getElementById('asin-input');
+    const asinList = document.getElementById('asin-list');
+    const selectedAlternatesList = document.getElementById('selected-alternates-list');
+    const selectedAlternatesDisplay = document.getElementById('selected-alternates-display');
+    const asinError = document.getElementById('asin-error');
+    const asinCounter = document.getElementById('asin-counter');
+    const addAsinBtn = document.getElementById('add-asin-btn');
+    const limitWarning = document.getElementById('limit-warning');
+    
+    // Mock product data for demonstration
+    const mockProducts = [
+      {
+        asin: 'ALT1234567',
+        name: '256GB External SSD Drive',
+        description: 'Fast USB-C portable storage with metal casing',
+        image: 'https://via.placeholder.com/60x60/4CAF50/white?text=SSD'
+      },
+      {
+        asin: 'ALT2345678',
+        name: '512GB USB Flash Drive',
+        description: 'Compact USB 3.0 flash drive, waterproof design',
+        image: 'https://via.placeholder.com/60x60/2196F3/white?text=USB'
+      },
+      {
+        asin: 'ALT3456789',
+        name: 'Premium Black Ink Cartridge',
+        description: 'Compatible with HP printers, high-yield',
+        image: 'https://via.placeholder.com/60x60/FF9800/white?text=INK'
+      },
+      {
+        asin: 'ALT4567890',
+        name: 'Wireless Ergonomic Mouse',
+        description: 'Battery-efficient with USB-C charging',
+        image: 'https://via.placeholder.com/60x60/9C27B0/white?text=MOUSE'
+      }
+    ];
+
+    // Get total count of alternates
+    function getTotalAlternatesCount() {
+      return manualAsins.size + selectedAlternates.size;
+    }
+
+    // Update the counter display and UI state
+    function updateCounterAndUI() {
+      const totalCount = getTotalAlternatesCount();
+      const isAtLimit = totalCount >= MAX_ALTERNATES;
+      
+      // Update counter text
+      asinCounter.textContent = `(${totalCount}/${MAX_ALTERNATES})`;
+      
+      // Update counter styling
+      if (isAtLimit) {
+        asinCounter.classList.add('at-limit');
+      } else {
+        asinCounter.classList.remove('at-limit');
+      }
+      
+      // Update input and button state
+      asinInput.disabled = isAtLimit;
+      addAsinBtn.disabled = isAtLimit;
+      
+      // Show/hide limit warning
+      if (isAtLimit) {
+        limitWarning.style.display = 'block';
+      } else {
+        limitWarning.style.display = 'none';
+      }
+      
+      // Update alternate tiles if they exist
+      const tiles = document.querySelectorAll('.alternate-tile:not(.selected)');
+      tiles.forEach(tile => {
+        if (isAtLimit) {
+          tile.style.opacity = '0.5';
+          tile.style.cursor = 'not-allowed';
+        } else {
+          tile.style.opacity = '1';
+          tile.style.cursor = 'pointer';
+        }
+      });
+    }
+
+    // Enhanced PII redaction patterns
+    function stripPII(text) {
+      if (!text) return text;
+      
+      return text
+        // Email addresses
+        .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[REDACTED EMAIL]')
+        // Phone numbers (various formats)
+        .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[REDACTED PHONE]')
+        .replace(/\b\(\d{3}\)\s?\d{3}[-.\s]?\d{4}\b/g, '[REDACTED PHONE]')
+        .replace(/\b\+\d{1,3}[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[REDACTED PHONE]')
+        // Social Security Numbers
+        .replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED SSN]')
+        // Credit card numbers (basic pattern)
+        .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[REDACTED CARD]');
+    }
+
+    // Show error message
+    function showError(message) {
+      asinError.textContent = message;
+      asinError.style.display = 'block';
+      setTimeout(() => {
+        asinError.style.display = 'none';
+      }, 5000);
+    }
+
+    // Add manual ASIN to the list
+    function addASIN() {
+      const value = asinInput.value.trim().toUpperCase();
+      
+      // Check limit first
+      if (getTotalAlternatesCount() >= MAX_ALTERNATES) {
+        showError(`Maximum of ${MAX_ALTERNATES} total alternates allowed. Remove some items to add more.`);
+        return false;
+      }
+      
+      // Validate ASIN format
+      if (!ASIN_REGEX.test(value)) {
+        showError('Invalid ASIN format. Must be exactly 10 alphanumeric characters.');
+        return false;
+      }
+      
+      // Check for duplicates in both manual and selected alternates
+      if (manualAsins.has(value) || selectedAlternates.has(value)) {
+        showError('ASIN already exists in the list. Duplicates are not allowed.');
+        return false;
+      }
+      
+      // Add to manual ASINs set
+      manualAsins.add(value);
+      
+      // Create list item for manual ASIN
+      const li = document.createElement('li');
+      li.className = 'manual-entry';
+      li.innerHTML = `
+        <div>
+          <span class="asin-text">${value}</span>
+          <span class="asin-type-label manual-label">Manual Entry</span>
+        </div>
+        <button class="remove-btn" onclick="removeManualASIN('${value}')">Remove</button>
+      `;
+      
+      asinList.appendChild(li);
+      asinInput.value = '';
+      
+      // Update counter and UI state
+      updateCounterAndUI();
+      
+      return true;
+    }
+
+    // Remove manual ASIN from the list
+    function removeManualASIN(asin) {
+      manualAsins.delete(asin);
+      
+      // Remove from DOM
+      const listItems = asinList.querySelectorAll('li.manual-entry');
+      listItems.forEach(li => {
+        if (li.querySelector('.asin-text').textContent === asin) {
+          asinList.removeChild(li);
+        }
+      });
+      
+      // Update counter and UI state
+      updateCounterAndUI();
+    }
+
+    // Update the selected alternates display
+    function updateSelectedAlternatesDisplay() {
+      if (selectedAlternates.size === 0) {
+        selectedAlternatesDisplay.style.display = 'none';
+        return;
+      }
+      
+      selectedAlternatesDisplay.style.display = 'block';
+      selectedAlternatesList.innerHTML = '';
+      
+      selectedAlternates.forEach(asin => {
+        const product = mockProducts.find(p => p.asin === asin);
+        const li = document.createElement('li');
+        li.className = 'selected-alternate';
+        li.innerHTML = `
+          <div>
+            <span class="asin-text">${asin}</span>
+            <span class="asin-type-label alternate-label">Selected Alternate</span>
+            ${product ? `<div style="font-size: 0.8rem; color: #666; margin-top: 2px;">${product.name}</div>` : ''}
+          </div>
+          <button class="remove-btn" onclick="removeSelectedAlternate('${asin}')">Remove</button>
+        `;
+        selectedAlternatesList.appendChild(li);
+      });
+    }
+
+    // Remove selected alternate
+    function removeSelectedAlternate(asin) {
+      selectedAlternates.delete(asin);
+      updateSelectedAlternatesDisplay();
+      
+      // Update the tile selection state
+      const tiles = document.querySelectorAll('.alternate-tile');
+      tiles.forEach(tile => {
+        if (tile.dataset.asin === asin) {
+          tile.classList.remove('selected');
+        }
+      });
+      
+      // Update counter and UI state
+      updateCounterAndUI();
+    }
+
+    // Generate and display suggested alternates
+    function suggestAlternates() {
+      const mustHave = document.getElementById('mustHave').value.trim();
+      const preferred = document.getElementById('preferred').value.trim();
+      const intent = document.getElementById('intent').value.trim();
+      
+      if (!mustHave && !preferred && !intent) {
+        showError('Please provide at least some information in the form fields to generate suggestions.');
+        return;
+      }
+      
+      // Mock search query generation (future: integrate with Bedrock)
+      const searchContext = {
+        intent: stripPII(intent),
+        mustHave: stripPII(mustHave),
+        preferred: stripPII(preferred)
+      };
+      
+      console.log('Generating search query with context:', searchContext);
+      
+      // Mock product search results (future: integrate with Amazon Product Search API)
+      const results = mockProducts.slice(0, 4);
+      
+      // Display results
+      const container = document.getElementById('suggested-alternates');
+      container.style.display = 'block';
+      container.innerHTML = `
+        <div class="section-header">Select Suggested Alternates</div>
+        <p>Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used):</p>
+      `;
+      
+      results.forEach(product => {
+        const tile = document.createElement('div');
+        tile.className = 'alternate-tile';
+        tile.dataset.asin = product.asin;
+        
+        // Check if already selected
+        if (selectedAlternates.has(product.asin)) {
+          tile.classList.add('selected');
+        }
+        
+        tile.onclick = () => toggleAlternateSelection(product.asin, tile);
+        
+        tile.innerHTML = `
+          <img src="${product.image}" alt="${product.name}" />
+          <div class="product-info">
+            <div class="product-name">${product.name}</div>
+            <div class="product-description">${product.description}</div>
+            <div class="product-asin">ASIN: ${product.asin}</div>
+          </div>
+        `;
+        
+        container.appendChild(tile);
+      });
+      
+      // Update UI state for tiles
+      updateCounterAndUI();
+    }
+
+    // Toggle alternate selection
+    function toggleAlternateSelection(asin, tile) {
+      // Check for duplicates across both lists
+      if (manualAsins.has(asin)) {
+        showError('This ASIN is already in your manual entries. Cannot select as alternate.');
+        return;
+      }
+      
+      if (tile.classList.contains('selected')) {
+        // Deselecting - always allowed
+        tile.classList.remove('selected');
+        selectedAlternates.delete(asin);
+      } else {
+        // Selecting - check limit
+        if (getTotalAlternatesCount() >= MAX_ALTERNATES) {
+          showError(`Maximum of ${MAX_ALTERNATES} total alternates allowed. Remove some items to add more.`);
+          return;
+        }
+        
+        tile.classList.add('selected');
+        selectedAlternates.add(asin);
+      }
+      
+      updateSelectedAlternatesDisplay();
+      updateCounterAndUI();
+    }
+
+    // Submit the form
+    function submitForm() {
+      // Prepare submission payload with clear separation
+      const payload = {
+        manualAsins: Array.from(manualAsins),
+        selectedAlternates: Array.from(selectedAlternates),
+        allAsins: [...Array.from(manualAsins), ...Array.from(selectedAlternates)],
+        intent: stripPII(document.getElementById('intent').value.trim()),
+        mustHave: stripPII(document.getElementById('mustHave').value.trim()),
+        preferred: stripPII(document.getElementById('preferred').value.trim())
+      };
+      
+      // Validate payload
+      if (payload.allAsins.length === 0) {
+        showError('Please add at least one ASIN (manual or selected alternate) before submitting.');
+        return;
+      }
+      
+      if (!payload.intent && !payload.mustHave && !payload.preferred) {
+        showError('Please provide at least some information in the form fields.');
+        return;
+      }
+      
+      // Future integration points:
+      // 1. Call Bedrock agent to generate Amazon search query
+      // 2. Call Amazon Product Search API with generated query
+      // 3. Call Bedrock agent to summarize user input for suppliers
+      
+      console.log('Submitting payload to downstream services:', payload);
+      
+      // Create detailed summary for user
+      let summary = 'Form submitted successfully!\n\n';
+      summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
+      summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
+      summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
+      summary += 'Next steps:\n- Bedrock agent will process your requirements\n- Product search will find additional matches\n- Suppliers will receive summarized context';
+      
+      alert(summary);
+      
+      // Reset form state
+      resetForm();
+    }
+
+    // Reset form to initial state
+    function resetForm() {
+      manualAsins.clear();
+      selectedAlternates.clear();
+      asinList.innerHTML = '';
+      selectedAlternatesList.innerHTML = '';
+      selectedAlternatesDisplay.style.display = 'none';
+      document.getElementById('intent').value = '';
+      document.getElementById('mustHave').value = '';
+      document.getElementById('preferred').value = '';
+      document.getElementById('suggested-alternates').style.display = 'none';
+      asinInput.value = '';
+      
+      // Reset UI state
+      updateCounterAndUI();
+    }
+
+    // Add Enter key support for ASIN input
+    asinInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        addASIN();
+      }
+    });
+
+    // Auto-format ASIN input to uppercase
+    asinInput.addEventListener('input', function(e) {
+      e.target.value = e.target.value.toUpperCase();
+    });
+
+    // Initialize counter on page load
+    updateCounterAndUI();
+  </script>
+</body>
+</html>
