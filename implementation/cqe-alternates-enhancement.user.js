@@ -254,6 +254,11 @@
                             </div>
 
                             <div class="cqe-form-group">
+                                <label for="cqe-item-description">Item Description</label>
+                                <input type="text" id="cqe-item-description" class="b-form-control" placeholder="Brief description of the item (e.g., laptop, blue pens, binder dividers)">
+                            </div>
+
+                            <div class="cqe-form-group">
                                 <label for="cqe-must-have">Must-Have Attributes</label>
                                 <textarea id="cqe-must-have" class="b-form-control" rows="2" placeholder="Critical product features required (e.g., 256 GB of storage space, USB-C connector)"></textarea>
                             </div>
@@ -544,12 +549,19 @@
         },
         
         // Generate search query from user input
-        generateSearchQuery: function(mustHave, preferred, intent, productName) {
+        generateSearchQuery: function(itemDescription, mustHave, preferred, intent, productName) {
             log('🔍 Generating search query from user input');
             
             const searchTerms = [];
             
-            // Extract key terms from must-have attributes (highest priority)
+            // Extract key terms from item description (highest priority)
+            if (itemDescription) {
+                const itemTerms = this.extractKeyTerms(itemDescription);
+                searchTerms.push(...itemTerms);
+                log('🏷️ Item description terms:', itemTerms);
+            }
+            
+            // Extract key terms from must-have attributes (second priority)
             if (mustHave) {
                 const mustHaveTerms = this.extractKeyTerms(mustHave);
                 searchTerms.push(...mustHaveTerms);
@@ -795,12 +807,12 @@
         },
         
         // Main search function - orchestrates the entire search process
-        performSearch: async function(mustHave, preferred, intent, productName) {
+        performSearch: async function(itemDescription, mustHave, preferred, intent, productName) {
             log('🚀 Starting Amazon search process');
             
             try {
                 // Generate search query
-                const searchQuery = this.generateSearchQuery(mustHave, preferred, intent, productName);
+                const searchQuery = this.generateSearchQuery(itemDescription, mustHave, preferred, intent, productName);
                 
                 if (!searchQuery) {
                     throw new Error('Could not generate search query from provided information');
@@ -832,11 +844,12 @@
 
     // Enhanced suggest alternates function with real Amazon search
     function suggestAlternates() {
+        const itemDescription = document.getElementById('cqe-item-description')?.value.trim() || '';
         const mustHave = document.getElementById('cqe-must-have')?.value.trim() || '';
         const preferred = document.getElementById('cqe-preferred')?.value.trim() || '';
         const intent = document.getElementById('cqe-intent')?.value.trim() || '';
         
-        if (!mustHave && !preferred && !intent) {
+        if (!itemDescription && !mustHave && !preferred && !intent) {
             showError('Please provide at least some information in the form fields to generate suggestions.');
             return;
         }
@@ -858,7 +871,7 @@
         const productName = window.currentProductData?.name || '';
         
         // Perform search using the Amazon Search Module
-        AMAZON_SEARCH_MODULE.performSearch(mustHave, preferred, intent, productName)
+        AMAZON_SEARCH_MODULE.performSearch(itemDescription, mustHave, preferred, intent, productName)
             .then(results => {
                 log('✅ Search completed, displaying results');
                 displaySearchResults(results);
@@ -989,6 +1002,7 @@
                 selectedAlternates: Array.from(selectedAlternates),
                 allAsins: [...Array.from(manualAsins), ...Array.from(selectedAlternates)],
                 intent: stripPII(document.getElementById('cqe-intent')?.value.trim() || ''),
+                itemDescription: stripPII(document.getElementById('cqe-item-description')?.value.trim() || ''),
                 mustHave: stripPII(document.getElementById('cqe-must-have')?.value.trim() || ''),
                 preferred: stripPII(document.getElementById('cqe-preferred')?.value.trim() || '')
             };
@@ -999,7 +1013,7 @@
                 return;
             }
             
-            if (!payload.intent && !payload.mustHave && !payload.preferred) {
+            if (!payload.intent && !payload.itemDescription && !payload.mustHave && !payload.preferred) {
                 showError('Please provide at least some information in the form fields.');
                 return;
             }
@@ -1033,11 +1047,13 @@
             if (selectedAlternatesDisplay) selectedAlternatesDisplay.style.display = 'none';
             
             const intent = document.getElementById('cqe-intent');
+            const itemDescription = document.getElementById('cqe-item-description');
             const mustHave = document.getElementById('cqe-must-have');
             const preferred = document.getElementById('cqe-preferred');
             const suggestedAlternates = document.getElementById('cqe-suggested-alternates');
             
             if (intent) intent.value = '';
+            if (itemDescription) itemDescription.value = '';
             if (mustHave) mustHave.value = '';
             if (preferred) preferred.value = '';
             if (suggestedAlternates) suggestedAlternates.style.display = 'none';
