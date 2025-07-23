@@ -3055,38 +3055,11 @@ Return top 8 products ranked by suitability as JSON array.
             return;
         }
         
-        // Analyze user behavior for adaptation
-        const behaviorAnalysis = CONVERSATION_ADAPTATION.analyzeUserBehavior(
-            userInput, 
-            enhancedConversationState.conversationHistory
-        );
-        
-        // Determine if conversation adaptation is needed
-        const adaptations = CONVERSATION_ADAPTATION.determineAdaptations(behaviorAnalysis);
-        
         // Track step progression
         const previousStep = enhancedConversationState.step;
         
         // Add user message to chat
         addChatMessage(userInput, true);
-        
-        // Apply adaptations if needed before processing
-        if (adaptations.length > 0) {
-            try {
-                const adaptedResponse = await CONVERSATION_ADAPTATION.applyAdaptations(adaptations, {
-                    originalMessage: userInput,
-                    productName: enhancedConversationState.productData?.name,
-                    currentStep: enhancedConversationState.step
-                });
-                
-                if (adaptedResponse) {
-                    addChatMessage(adaptedResponse, false);
-                    // Continue with normal processing after adaptation
-                }
-            } catch (error) {
-                log('Error applying adaptations:', error);
-            }
-        }
         
         // Process based on step type and context
         try {
@@ -3133,14 +3106,6 @@ Return top 8 products ranked by suitability as JSON array.
         if (previousStep !== enhancedConversationState.step) {
             CONVERSATION_ANALYTICS.trackStepProgression(previousStep, enhancedConversationState.step, userInput);
         }
-        
-        // Store behavior analysis in conversation state for future reference
-        enhancedConversationState.userBehaviorPattern = {
-            ...enhancedConversationState.userBehaviorPattern,
-            lastAnalysis: behaviorAnalysis,
-            adaptationsApplied: adaptations,
-            timestamp: new Date().toISOString()
-        };
     }
     
     // Process user input based on current conversation step (updated for enhanced system)
