@@ -1870,7 +1870,7 @@
         CONFIG: {
             region: 'us-west-2',
             agentId: 'CAP1I3RZLN',
-            agentAliasId: 'TSTALIASID', // TODO: Replace with actual alias ID
+            agentAliasId: 'CAP1I3RZLN', // Using same ID as provided
             timeout: 30000, // 30 second timeout
             maxRetries: 3,
             retryDelay: 1000 // 1 second base delay
@@ -1922,9 +1922,15 @@
                     lastError = error;
                     log(`Strands API attempt ${attempt} failed:`, error.message);
                     
-                    // Don't retry on authentication errors
-                    if (error.status === 401 || error.status === 403) {
-                        break;
+                    // Check for authentication errors - don't retry these
+                    if (error.message.includes('Authentication failed') || error.message.includes('credentials') || error.message.includes('unauthorized') || error.status === 401 || error.status === 403) {
+                        log('Authentication error detected, notifying user');
+                        return {
+                            success: false,
+                            error: 'Authentication failed',
+                            response: 'I\'m having trouble authenticating with the AI service. Please ensure you\'re logged in to AWS and have the necessary permissions.',
+                            authError: true
+                        };
                     }
                     
                     // Wait before retry (exponential backoff)
@@ -1936,41 +1942,153 @@
             }
             
             // All retries failed
-            log('All Strands API attempts failed:', lastError);
+            log('All Bedrock Agent attempts failed:', lastError);
             return {
                 success: false,
-                error: lastError.message || 'LLM service unavailable',
-                fallback: true
+                error: lastError.message || 'Bedrock Agent service unavailable',
+                response: 'I apologize, but I\'m having trouble connecting to the AI service right now. Please try again in a moment.'
             };
         },
         
-        // Perform the actual HTTP request
-        performRequest: async function(prompt, config) {
-            // For now, simulate the API call since we don't have real Strands access
-            // In production, this would make the actual HTTP request
-            
-            log('Simulating Strands API call with prompt:', prompt.substring(0, 100) + '...');
-            
-            // Simulate network delay
-            await this.sleep(1000 + Math.random() * 2000);
-            
-            // Simulate occasional failures for testing
-            if (Math.random() < 0.1) { // 10% failure rate for testing
-                throw new Error('Simulated network error');
+        // AWS SDK and client management
+        sdkLoaded: false,
+        client: null,
+        currentSessionId: null,
+        
+        // Initialize AWS SDK
+        initializeSDK: async function() {
+            if (this.sdkLoaded && window.AWS) {
+                return true;
             }
             
-            // Return simulated response
-            return {
-                success: true,
-                response: this.generateSimulatedResponse(prompt),
-                model: config.model,
-                requestId: this.generateRequestId(),
-                usage: {
-                    promptTokens: Math.floor(prompt.length / 4),
-                    completionTokens: 150,
-                    totalTokens: Math.floor(prompt.length / 4) + 150
+            try {
+                log('Loading AWS SDK...');
+                
+                // Load AWS SDK from CDN
+                const script = document.createElement('script');
+                script.src = 'https://sdk.amazonaws.com/js/aws-sdk-2.x.x.min.js';
+                script.async = true;
+                
+                await new Promise((resolve, reject) => {
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+                
+                if (!window.AWS) {
+                    throw new Error('AWS SDK failed to load');
                 }
-            };
+                
+                // Configure AWS with STS tokens
+                window.AWS.config.update({
+                    region: this.CONFIG.region
+                });
+                
+                this.sdkLoaded = true;
+                log('AWS SDK loaded successfully');
+                return true;
+                
+            } catch (error) {
+                log('Failed to load AWS SDK:', error);
+                return false;
+            }
+        },
+        
+        // Initialize Bedrock Agent Runtime client
+        initializeClient: async function() {
+            if (this.client) {
+                return this.client;
+            }
+            
+            const sdkReady = await this.initializeSDK();
+            if (!sdkReady) {
+                throw new Error('AWS SDK not available');
+            }
+            
+            try {
+                // Create Bedrock Agent Runtime client
+                this.client = new window.AWS.BedrockAgentRuntime({
+                    region: this.CONFIG.region
+                });
+                
+                log('Bedrock Agent Runtime client initialized');
+                return this.client;
+                
+            } catch (error) {
+                log('Failed to initialize Bedrock client:', error);
+                throw error;
+            }
+        },
+        
+        generateSessionId: function() {
+            return 'cqe_session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        },
+        
+        getSessionId: function() {
+            if (!this.currentSessionId) {
+                this.currentSessionId = this.generateSessionId();
+            }
+            return this.currentSessionId;
+        },
+        
+        resetSession: function() {
+            this.currentSessionId = null;
+        },
+        
+        // Perform the actual Bedrock Agent request
+        performRequest: async function(prompt, config) {
+            try {
+                const client = await this.initializeClient();
+                const sessionId = this.getSessionId();
+                
+                log('Invoking Bedrock Agent with prompt:', prompt.substring(0, 100) + '...');
+                
+                const params = {
+                    agentId: config.agentId,
+                    agentAliasId: config.agentAliasId,
+                    sessionId: sessionId,
+                    inputText: prompt
+                };
+                
+                // Make the actual Bedrock Agent call
+                const response = await client.invokeAgent(params).promise();
+                
+                if (!response.completion) {
+                    throw new Error('No completion in response');
+                }
+                
+                // Process streaming response
+                let completion = '';
+                for await (const chunkEvent of response.completion) {
+                    const chunk = chunkEvent.chunk;
+                    if (chunk && chunk.bytes) {
+                        const decodedResponse = new TextDecoder('utf-8').decode(chunk.bytes);
+                        completion += decodedResponse;
+                    }
+                }
+                
+                return {
+                    success: true,
+                    response: completion,
+                    model: 'bedrock-agent',
+                    requestId: sessionId,
+                    usage: {
+                        promptTokens: Math.floor(prompt.length / 4),
+                        completionTokens: Math.floor(completion.length / 4),
+                        totalTokens: Math.floor(prompt.length / 4) + Math.floor(completion.length / 4)
+                    }
+                };
+                
+            } catch (error) {
+                log('Bedrock Agent request error:', error);
+                
+                // Check for authentication errors
+                if (error.message.includes('credentials') || error.message.includes('authentication') || error.message.includes('unauthorized')) {
+                    throw new Error('Authentication failed: Please ensure you\'re logged in to AWS and have the necessary permissions.');
+                }
+                
+                throw error;
+            }
         },
         
         // Generate simulated LLM response for testing
@@ -2271,10 +2389,11 @@ Return top 8 products ranked by suitability as JSON array.
         const analyticsSummary = CONVERSATION_ANALYTICS.getAnalyticsSummary();
         console.log('   Analytics data:', analyticsSummary);
         
-        // Add LLM integration status
-        console.log('9. LLM Integration:');
-        console.log('   Strands endpoint:', BEDROCK_AGENT_INTEGRATION.CONFIG.endpoint);
-        console.log('   Default model:', BEDROCK_AGENT_INTEGRATION.CONFIG.model);
+        // Add Bedrock Agent integration status
+        console.log('9. Bedrock Agent Integration:');
+        console.log('   Agent ID:', BEDROCK_AGENT_INTEGRATION.CONFIG.agentId);
+        console.log('   Agent Alias ID:', BEDROCK_AGENT_INTEGRATION.CONFIG.agentAliasId);
+        console.log('   Region:', BEDROCK_AGENT_INTEGRATION.CONFIG.region);
         console.log('   Current conversation state:', enhancedConversationState);
         
         console.log('=== End Debug Info ===');
@@ -4859,9 +4978,9 @@ Return top 8 products ranked by suitability as JSON array.
         }
     }
     
-    // Test LLM integration function
+    // Test Bedrock Agent integration function
     async function testLLMIntegration() {
-        console.log('Testing Strands SDK integration...');
+        console.log('Testing Bedrock Agent integration...');
         
         try {
             const testPrompt = "Test prompt for requirements extraction: I need a durable, waterproof device under $50";
@@ -4870,9 +4989,9 @@ Return top 8 products ranked by suitability as JSON array.
             console.log('LLM Test Result:', result);
             
             if (result.success) {
-                console.log('✅ LLM integration working correctly');
+                console.log('✅ Bedrock Agent integration working correctly');
             } else {
-                console.log('⚠️ LLM integration failed:', result.error);
+                console.log('⚠️ Bedrock Agent integration failed:', result.error);
             }
             
             // Test intelligent response generation
@@ -4885,7 +5004,7 @@ Return top 8 products ranked by suitability as JSON array.
             console.log('Intelligent Response Test:', responseTest);
             
         } catch (error) {
-            console.log('❌ LLM integration error:', error);
+            console.log('❌ Bedrock Agent integration error:', error);
         }
     }
     
