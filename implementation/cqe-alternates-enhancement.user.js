@@ -225,22 +225,20 @@
                         
                         <!-- Manual ASIN Input Section -->
                         <div class="cqe-form-group">
-                            <div class="cqe-section-header">Manual Alternate ASIN Input <span id="cqe-asin-counter" class="cqe-asin-counter">(0/3)</span></div>
                             <div class="cqe-input-group">
-                                <input type="text" id="cqe-asin-input" class="b-form-control" placeholder="Enter ASIN (10-character alphanumeric)" maxlength="10" />
+                                <input type="text" id="cqe-asin-input" class="b-form-control" placeholder="Enter an alternate ASIN here" maxlength="10" />
                                 <button id="cqe-add-asin-btn" class="b-button">Add ASIN</button>
                             </div>
                             <div id="cqe-asin-error" class="cqe-error" style="display: none;"></div>
                             <div id="cqe-limit-warning" class="cqe-limit-warning">
                                 You can only add a maximum of 3 total alternates (manual + selected). Remove some items to add more.
                             </div>
-                            <ul class="cqe-asin-list" id="cqe-asin-list"></ul>
                         </div>
 
-                        <!-- Selected Alternates Display -->
-                        <div class="cqe-form-group" id="cqe-selected-alternates-display" style="display: none;">
-                            <div class="cqe-section-header">Selected Suggested Alternates</div>
-                            <ul class="cqe-asin-list" id="cqe-selected-alternates-list"></ul>
+                        <!-- Selected Alternates Display (Consolidated) -->
+                        <div class="cqe-form-group" id="cqe-selected-alternates-display">
+                            <div class="cqe-section-header">Selected Alternates <span id="cqe-asin-counter" class="cqe-asin-counter">(0/3)</span></div>
+                            <ul class="cqe-asin-list" id="cqe-asin-list"></ul>
                         </div>
 
                         <!-- Alternates Information Form -->
@@ -314,7 +312,6 @@
         // DOM elements
         const asinInput = document.getElementById('cqe-asin-input');
         const asinList = document.getElementById('cqe-asin-list');
-        const selectedAlternatesList = document.getElementById('cqe-selected-alternates-list');
         const selectedAlternatesDisplay = document.getElementById('cqe-selected-alternates-display');
         const asinError = document.getElementById('cqe-asin-error');
         const asinCounter = document.getElementById('cqe-asin-counter');
@@ -451,24 +448,10 @@
             // Add to manual ASINs set
             manualAsins.add(value);
             
-            // Create list item for manual ASIN
-            if (asinList) {
-                const li = document.createElement('li');
-                li.className = 'manual-entry';
-                li.innerHTML = `
-                    <div>
-                        <span class="asin-text">${value}</span>
-                        <span class="cqe-asin-type-label manual-label">Manual Entry</span>
-                    </div>
-                    <button class="remove-btn" onclick="window.cqeRemoveManualASIN('${value}')">Remove</button>
-                `;
-                
-                asinList.appendChild(li);
-            }
-            
             asinInput.value = '';
             
-            // Update counter and UI state
+            // Update consolidated display and counter
+            updateSelectedAlternatesDisplay();
             updateCounterAndUI();
             
             return true;
@@ -478,32 +461,34 @@
         window.cqeRemoveManualASIN = function(asin) {
             manualAsins.delete(asin);
             
-            // Remove from DOM
-            if (asinList) {
-                const listItems = asinList.querySelectorAll('li.manual-entry');
-                listItems.forEach(li => {
-                    if (li.querySelector('.asin-text').textContent === asin) {
-                        asinList.removeChild(li);
-                    }
-                });
-            }
-            
-            // Update counter and UI state
+            // Update consolidated display and counter
+            updateSelectedAlternatesDisplay();
             updateCounterAndUI();
         };
 
-        // Update the selected alternates display
+        // Update the consolidated alternates display
         function updateSelectedAlternatesDisplay() {
-            if (!selectedAlternatesDisplay || !selectedAlternatesList) return;
+            if (!selectedAlternatesDisplay || !asinList) return;
             
-            if (selectedAlternates.size === 0) {
-                selectedAlternatesDisplay.style.display = 'none';
-                return;
-            }
-            
+            // Always show the section since we have the input field there
             selectedAlternatesDisplay.style.display = 'block';
-            selectedAlternatesList.innerHTML = '';
+            asinList.innerHTML = '';
             
+            // Add manual ASINs first
+            manualAsins.forEach(value => {
+                const li = document.createElement('li');
+                li.className = 'manual-entry';
+                li.innerHTML = `
+                    <div>
+                        <span class="asin-text">${value}</span>
+                        <span class="cqe-asin-type-label manual-label">Customer Supplied</span>
+                    </div>
+                    <button class="remove-btn" onclick="window.cqeRemoveManualASIN('${value}')" title="Remove">×</button>
+                `;
+                asinList.appendChild(li);
+            });
+            
+            // Add selected alternates
             selectedAlternates.forEach(asin => {
                 const product = mockProducts.find(p => p.asin === asin);
                 const li = document.createElement('li');
@@ -511,12 +496,12 @@
                 li.innerHTML = `
                     <div>
                         <span class="asin-text">${asin}</span>
-                        <span class="cqe-asin-type-label alternate-label">Selected Alternate</span>
-                        ${product ? `<div style="font-size: 0.8rem; color: #666; margin-top: 2px;">${product.name}</div>` : ''}
+                        <span class="cqe-asin-type-label alternate-label">Amazon Suggested</span>
+                        ${product && product.name ? `<div style="font-size: 0.8rem; color: #666; margin-top: 2px;">${product.name}</div>` : ''}
                     </div>
-                    <button class="remove-btn" onclick="window.cqeRemoveSelectedAlternate('${asin}')">Remove</button>
+                    <button class="remove-btn" onclick="window.cqeRemoveSelectedAlternate('${asin}')" title="Remove">×</button>
                 `;
-                selectedAlternatesList.appendChild(li);
+                asinList.appendChild(li);
             });
         }
 
@@ -807,7 +792,7 @@
                 return `Product with ${features.slice(0, 2).join(' and ')}`;
             }
             
-            return 'Related Amazon product';
+            return ''; // Return empty string instead of generic text
         },
         
         // Main search function - orchestrates the entire search process
@@ -1047,8 +1032,6 @@
             manualAsins.clear();
             selectedAlternates.clear();
             if (asinList) asinList.innerHTML = '';
-            if (selectedAlternatesList) selectedAlternatesList.innerHTML = '';
-            if (selectedAlternatesDisplay) selectedAlternatesDisplay.style.display = 'none';
             
             const intent = document.getElementById('cqe-intent');
             const itemDescription = document.getElementById('cqe-item-description');
@@ -1062,6 +1045,9 @@
             if (preferred) preferred.value = '';
             if (suggestedAlternates) suggestedAlternates.style.display = 'none';
             if (asinInput) asinInput.value = '';
+            
+            // Update consolidated display
+            updateSelectedAlternatesDisplay();
             
             // Reset UI state
             updateCounterAndUI();
@@ -1517,11 +1503,18 @@
                 .remove-btn {
                     background-color: #dc3545;
                     color: white;
-                    padding: 4px 8px;
-                    font-size: 0.8rem;
+                    padding: 2px 6px;
+                    font-size: 1rem;
+                    font-weight: bold;
                     border: none;
-                    border-radius: 4px;
+                    border-radius: 50%;
                     cursor: pointer;
+                    width: 24px;
+                    height: 24px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    line-height: 1;
                 }
                 
                 .remove-btn:hover {
