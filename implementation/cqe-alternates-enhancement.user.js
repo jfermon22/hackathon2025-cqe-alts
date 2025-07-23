@@ -26,6 +26,21 @@
         console.log(`[CQE Alternates] ${message}`, data || '');
     }
     
+    // Add CSS for loading spinner animation
+    function addSpinnerCSS() {
+        if (document.getElementById('cqe-spinner-css')) return; // Already added
+        
+        const style = document.createElement('style');
+        style.id = 'cqe-spinner-css';
+        style.textContent = `
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     // Check if we're on the correct CQE page
     function isCQEQuotePage() {
         const header = document.querySelector(CQE_SELECTORS.pageHeader);
@@ -514,65 +529,430 @@
         };
 
         // Generate and display suggested alternates
-        function suggestAlternates() {
-            const mustHave = document.getElementById('cqe-must-have')?.value.trim() || '';
-            const preferred = document.getElementById('cqe-preferred')?.value.trim() || '';
-            const intent = document.getElementById('cqe-intent')?.value.trim() || '';
+    // ============================================================================
+    // AMAZON SEARCH MODULE - Self-contained search functionality
+    // This module can be easily removed if search functionality needs to be backed out
+    // ============================================================================
+    
+    const AMAZON_SEARCH_MODULE = {
+        // Configuration
+        SEARCH_CONFIG: {
+            MAX_RESULTS: 4,
+            TIMEOUT: 15000, // 15 seconds
+            BASE_URL: 'https://www.amazon.com/s?k=',
+            RETRY_ATTEMPTS: 2
+        },
+        
+        // Generate search query from user input
+        generateSearchQuery: function(mustHave, preferred, intent, productName) {
+            log('🔍 Generating search query from user input');
             
-            if (!mustHave && !preferred && !intent) {
-                showError('Please provide at least some information in the form fields to generate suggestions.');
-                return;
+            const searchTerms = [];
+            
+            // Extract key terms from must-have attributes (highest priority)
+            if (mustHave) {
+                const mustHaveTerms = this.extractKeyTerms(mustHave);
+                searchTerms.push(...mustHaveTerms);
+                log('📋 Must-have terms:', mustHaveTerms);
             }
             
-            // Mock search query generation (future: integrate with Bedrock)
-            const searchContext = {
-                intent: stripPII(intent),
-                mustHave: stripPII(mustHave),
-                preferred: stripPII(preferred)
-            };
+            // Extract key terms from preferred attributes
+            if (preferred) {
+                const preferredTerms = this.extractKeyTerms(preferred);
+                searchTerms.push(...preferredTerms);
+                log('⭐ Preferred terms:', preferredTerms);
+            }
             
-            log('Generating search query with context:', searchContext);
+            // Extract category from product name as fallback
+            if (productName && searchTerms.length < 2) {
+                const categoryTerms = this.extractCategoryFromProductName(productName);
+                searchTerms.push(...categoryTerms);
+                log('📦 Category terms from product name:', categoryTerms);
+            }
             
-            // Mock product search results (future: integrate with Amazon Product Search API)
-            const results = mockProducts.slice(0, 4);
+            // Fallback to intent if we still don't have enough terms
+            if (intent && searchTerms.length < 2) {
+                const intentTerms = this.extractKeyTerms(intent);
+                searchTerms.push(...intentTerms);
+                log('💭 Intent terms:', intentTerms);
+            }
             
-            // Display results
-            const container = document.getElementById('cqe-suggested-alternates');
-            if (!container) return;
+            // Remove duplicates and create search query
+            const uniqueTerms = [...new Set(searchTerms)];
+            const searchQuery = uniqueTerms.slice(0, 5).join('+'); // Limit to 5 terms max
             
-            container.style.display = 'block';
-            container.innerHTML = `
-                <div class="cqe-section-header">Select Suggested Alternates</div>
-                <p>Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used):</p>
-            `;
+            log('🔎 Generated search query:', searchQuery);
+            return searchQuery;
+        },
+        
+        // Extract key terms from text input
+        extractKeyTerms: function(text) {
+            if (!text) return [];
             
-            results.forEach(product => {
-                const tile = document.createElement('div');
-                tile.className = 'alternate-tile';
-                tile.dataset.asin = product.asin;
-                
-                // Check if already selected
-                if (selectedAlternates.has(product.asin)) {
-                    tile.classList.add('selected');
+            // Common stop words to filter out
+            const stopWords = new Set([
+                'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+                'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does',
+                'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this',
+                'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him',
+                'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'need',
+                'needs', 'want', 'wants', 'like', 'prefer', 'required', 'must', 'should', 'would'
+            ]);
+            
+            // Extract meaningful terms
+            const terms = text.toLowerCase()
+                .replace(/[^\w\s-]/g, ' ') // Remove punctuation except hyphens
+                .split(/\s+/)
+                .filter(term => term.length > 2 && !stopWords.has(term))
+                .filter(term => !/^\d+$/.test(term)) // Remove pure numbers
+                .slice(0, 10); // Limit to prevent overly long queries
+            
+            return terms;
+        },
+        
+        // Extract category terms from product name
+        extractCategoryFromProductName: function(productName) {
+            if (!productName) return [];
+            
+            // Common product category patterns
+            const categoryPatterns = [
+                /binder\s*divider/i,
+                /divider/i,
+                /binder/i,
+                /storage/i,
+                /organizer/i,
+                /folder/i,
+                /file/i,
+                /office/i,
+                /school/i,
+                /supplies/i
+            ];
+            
+            const terms = [];
+            const lowerName = productName.toLowerCase();
+            
+            categoryPatterns.forEach(pattern => {
+                const match = lowerName.match(pattern);
+                if (match) {
+                    terms.push(match[0].replace(/\s+/g, '+'));
                 }
-                
-                tile.onclick = () => toggleAlternateSelection(product.asin, tile);
-                
-                tile.innerHTML = `
-                    <img src="${product.image}" alt="${product.name}" />
-                    <div class="product-info">
-                        <div class="product-name">${product.name}</div>
-                        <div class="product-description">${product.description}</div>
-                        <div class="product-asin">ASIN: ${product.asin}</div>
-                    </div>
-                `;
-                
-                container.appendChild(tile);
             });
             
-            // Update UI state for tiles
-            updateCounterAndUI();
+            return terms;
+        },
+        
+        // Fetch search results from Amazon
+        fetchSearchResults: async function(searchQuery) {
+            if (!searchQuery) {
+                throw new Error('No search query provided');
+            }
+            
+            const searchUrl = this.SEARCH_CONFIG.BASE_URL + encodeURIComponent(searchQuery);
+            log('📄 Fetching search results from:', searchUrl);
+            
+            let lastError;
+            
+            // Retry logic
+            for (let attempt = 1; attempt <= this.SEARCH_CONFIG.RETRY_ATTEMPTS; attempt++) {
+                try {
+                    log(`🔄 Search attempt ${attempt}/${this.SEARCH_CONFIG.RETRY_ATTEMPTS}`);
+                    
+                    const response = await new Promise((resolve, reject) => {
+                        GM_xmlhttpRequest({
+                            method: 'GET',
+                            url: searchUrl,
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                'Accept-Language': 'en-US,en;q=0.5',
+                                'Accept-Encoding': 'gzip, deflate, br',
+                                'DNT': '1',
+                                'Connection': 'keep-alive',
+                                'Upgrade-Insecure-Requests': '1'
+                            },
+                            onload: resolve,
+                            onerror: reject,
+                            ontimeout: () => reject(new Error('Request timeout')),
+                            timeout: this.SEARCH_CONFIG.TIMEOUT
+                        });
+                    });
+                    
+                    if (response.status !== 200) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    log(`✅ Search results fetched successfully (${response.responseText.length} characters)`);
+                    return response.responseText;
+                    
+                } catch (error) {
+                    lastError = error;
+                    log(`❌ Search attempt ${attempt} failed:`, error.message);
+                    
+                    if (attempt < this.SEARCH_CONFIG.RETRY_ATTEMPTS) {
+                        // Wait before retry (exponential backoff)
+                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                    }
+                }
+            }
+            
+            throw lastError;
+        },
+        
+        // Parse search results HTML
+        parseSearchResults: function(html) {
+            log('🔍 Parsing search results HTML');
+            
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Find all search result items
+                const resultItems = doc.querySelectorAll('div[role="listitem"][data-asin]');
+                log(`📋 Found ${resultItems.length} potential result items`);
+                
+                const results = [];
+                
+                for (let i = 0; i < resultItems.length && results.length < this.SEARCH_CONFIG.MAX_RESULTS; i++) {
+                    const item = resultItems[i];
+                    const result = this.extractProductData(item);
+                    
+                    if (result) {
+                        results.push(result);
+                        log(`✅ Extracted product ${results.length}:`, result.name.substring(0, 50) + '...');
+                    }
+                }
+                
+                log(`📦 Successfully parsed ${results.length} search results`);
+                return results;
+                
+            } catch (error) {
+                log('❌ Error parsing search results:', error);
+                throw new Error('Failed to parse search results: ' + error.message);
+            }
+        },
+        
+        // Extract product data from a single search result item
+        extractProductData: function(item) {
+            try {
+                // Extract ASIN
+                const asin = item.getAttribute('data-asin');
+                if (!asin || asin.length !== 10) {
+                    return null; // Invalid ASIN
+                }
+                
+                // Extract image
+                const imgElement = item.querySelector('img.s-image');
+                if (!imgElement || !imgElement.src) {
+                    return null; // No image found
+                }
+                
+                // Extract product name from h2 aria-label
+                const h2Element = item.querySelector('h2');
+                if (!h2Element) {
+                    return null; // No title found
+                }
+                
+                const productName = h2Element.getAttribute('aria-label') || h2Element.textContent?.trim();
+                if (!productName || productName.length < 10) {
+                    return null; // Invalid or too short product name
+                }
+                
+                // Clean up product name (remove "Sponsored Ad -" prefix if present)
+                const cleanName = productName.replace(/^Sponsored Ad\s*-\s*/i, '').trim();
+                
+                return {
+                    asin: asin,
+                    name: cleanName,
+                    image: imgElement.src,
+                    description: this.generateDescription(cleanName)
+                };
+                
+            } catch (error) {
+                log('⚠️ Error extracting product data from item:', error);
+                return null;
+            }
+        },
+        
+        // Generate a brief description from product name
+        generateDescription: function(productName) {
+            if (!productName) return 'Amazon product';
+            
+            // Extract key features for description
+            const name = productName.toLowerCase();
+            const features = [];
+            
+            if (name.includes('tab')) features.push('tabbed organization');
+            if (name.includes('clear')) features.push('clear visibility');
+            if (name.includes('insertable')) features.push('customizable labels');
+            if (name.includes('ring binder')) features.push('3-ring binder compatible');
+            if (name.includes('divider')) features.push('section dividers');
+            
+            if (features.length > 0) {
+                return `Product with ${features.slice(0, 2).join(' and ')}`;
+            }
+            
+            return 'Related Amazon product';
+        },
+        
+        // Main search function - orchestrates the entire search process
+        performSearch: async function(mustHave, preferred, intent, productName) {
+            log('🚀 Starting Amazon search process');
+            
+            try {
+                // Generate search query
+                const searchQuery = this.generateSearchQuery(mustHave, preferred, intent, productName);
+                
+                if (!searchQuery) {
+                    throw new Error('Could not generate search query from provided information');
+                }
+                
+                // Fetch search results
+                const html = await this.fetchSearchResults(searchQuery);
+                
+                // Parse results
+                const results = this.parseSearchResults(html);
+                
+                if (results.length === 0) {
+                    throw new Error('No valid products found in search results');
+                }
+                
+                log(`🎉 Search completed successfully with ${results.length} results`);
+                return results;
+                
+            } catch (error) {
+                log('❌ Search process failed:', error);
+                throw error;
+            }
         }
+    };
+    
+    // ============================================================================
+    // END AMAZON SEARCH MODULE
+    // ============================================================================
+
+    // Enhanced suggest alternates function with real Amazon search
+    function suggestAlternates() {
+        const mustHave = document.getElementById('cqe-must-have')?.value.trim() || '';
+        const preferred = document.getElementById('cqe-preferred')?.value.trim() || '';
+        const intent = document.getElementById('cqe-intent')?.value.trim() || '';
+        
+        if (!mustHave && !preferred && !intent) {
+            showError('Please provide at least some information in the form fields to generate suggestions.');
+            return;
+        }
+        
+        // Show loading state
+        const container = document.getElementById('cqe-suggested-alternates');
+        if (!container) return;
+        
+        container.style.display = 'block';
+        container.innerHTML = `
+            <div class="cqe-section-header">Searching for Alternates...</div>
+            <div style="text-align: center; padding: 20px;">
+                <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <p style="margin-top: 10px; color: #666;">Finding relevant alternates based on your requirements...</p>
+            </div>
+        `;
+        
+        // Get current product name for context
+        const productName = window.currentProductData?.name || '';
+        
+        // Perform search using the Amazon Search Module
+        AMAZON_SEARCH_MODULE.performSearch(mustHave, preferred, intent, productName)
+            .then(results => {
+                log('✅ Search completed, displaying results');
+                displaySearchResults(results);
+            })
+            .catch(error => {
+                log('❌ Search failed, falling back to mock data:', error);
+                displaySearchFallback(error.message);
+            });
+    }
+    
+    // Display search results
+    function displaySearchResults(results) {
+        const container = document.getElementById('cqe-suggested-alternates');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div class="cqe-section-header">Select Suggested Alternates</div>
+            <p>Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used):</p>
+        `;
+        
+        results.forEach(product => {
+            const tile = document.createElement('div');
+            tile.className = 'alternate-tile';
+            tile.dataset.asin = product.asin;
+            
+            // Check if already selected
+            if (selectedAlternates.has(product.asin)) {
+                tile.classList.add('selected');
+            }
+            
+            tile.onclick = () => toggleAlternateSelection(product.asin, tile);
+            
+            tile.innerHTML = `
+                <img src="${product.image}" alt="${product.name}" />
+                <div class="product-info">
+                    <div class="product-name">${product.name}</div>
+                    <div class="product-description">${product.description}</div>
+                    <div class="product-asin">ASIN: ${product.asin}</div>
+                </div>
+            `;
+            
+            container.appendChild(tile);
+        });
+        
+        // Update UI state for tiles
+        updateCounterAndUI();
+    }
+    
+    // Display fallback when search fails
+    function displaySearchFallback(errorMessage) {
+        const container = document.getElementById('cqe-suggested-alternates');
+        if (!container) return;
+        
+        log('🔄 Displaying fallback mock data due to search failure');
+        
+        container.innerHTML = `
+            <div class="cqe-section-header">Select Suggested Alternates</div>
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin-bottom: 15px; border-radius: 4px;">
+                <strong>⚠️ Search temporarily unavailable</strong><br>
+                <small>Showing sample alternates. Error: ${errorMessage}</small>
+            </div>
+            <p>Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used):</p>
+        `;
+        
+        // Use mock data as fallback
+        const results = mockProducts.slice(0, 4);
+        
+        results.forEach(product => {
+            const tile = document.createElement('div');
+            tile.className = 'alternate-tile';
+            tile.dataset.asin = product.asin;
+            
+            // Check if already selected
+            if (selectedAlternates.has(product.asin)) {
+                tile.classList.add('selected');
+            }
+            
+            tile.onclick = () => toggleAlternateSelection(product.asin, tile);
+            
+            tile.innerHTML = `
+                <img src="${product.image}" alt="${product.name}" />
+                <div class="product-info">
+                    <div class="product-name">${product.name}</div>
+                    <div class="product-description">${product.description}</div>
+                    <div class="product-asin">ASIN: ${product.asin}</div>
+                </div>
+            `;
+            
+            container.appendChild(tile);
+        });
+        
+        // Update UI state for tiles
+        updateCounterAndUI();
+    }
 
         // Toggle alternate selection
         function toggleAlternateSelection(asin, tile) {
@@ -4788,6 +5168,9 @@ Return top 8 products ranked by suitability as JSON array.
         // Store product description for later use
         let productDescription = null;
         
+        // Store product data globally for search module access
+        window.currentProductData = productData;
+        
         // Fetch product description in background if ASIN is available
         if (productData && productData.asin) {
             fetchProductDescription(productData.asin).then(description => {
@@ -5542,6 +5925,7 @@ Return top 8 products ranked by suitability as JSON array.
             try {
                 // Add CSS styles
                 addModalStyles();
+                addSpinnerCSS(); // Add spinner animation CSS
                 
                 // Add button near ASIN input
                 addAlternatesButton();
