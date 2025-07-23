@@ -2286,27 +2286,17 @@ Return top 8 products ranked by suitability as JSON array.
         // Create button with enhanced styling
         const button = document.createElement('button');
         button.id = 'cqe-add-alternates-btn';
+        button.className = 'b-button';
         button.textContent = 'Add Alternates';
         button.style.cssText = `
             margin: 10px;
             padding: 8px 16px;
-            background: #ff9900;
-            color: white;
-            border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         `;
-        
-        // Add hover effect
-        button.addEventListener('mouseenter', () => {
-            button.style.backgroundColor = '#e88900';
-        });
-        button.addEventListener('mouseleave', () => {
-            button.style.backgroundColor = '#ff9900';
-        });
         
         // Add click handler
         button.addEventListener('click', (e) => {
@@ -3414,13 +3404,13 @@ Return top 8 products ranked by suitability as JSON array.
         const sanitizedRequirements = validation.requirements;
         const keywords = INPUT_HANDLERS.extractKeywords(sanitizedRequirements);
         
-        conversationState.requirements = {
+        enhancedConversationState.requirements = {
             text: sanitizedRequirements,
             keywords: keywords,
             processedAt: new Date().toISOString()
         };
         
-        conversationState.step = 'PROCESS_REQUIREMENTS';
+        enhancedConversationState.step = 'PROCESS_REQUIREMENTS';
         
         // Provide feedback on extracted keywords
         let keywordFeedback = '';
@@ -3432,7 +3422,7 @@ Return top 8 products ranked by suitability as JSON array.
         
         // Simulate processing delay
         setTimeout(() => {
-            processRequirements(conversationState.requirements);
+            processRequirements(enhancedConversationState.requirements);
         }, 2000);
     }
     
@@ -3442,7 +3432,7 @@ Return top 8 products ranked by suitability as JSON array.
         
         // TODO: Integrate with LLM service in Phase 3
         // For now, simulate finding alternates
-        conversationState.step = 'PRESENT_ALTERNATES';
+        enhancedConversationState.step = 'PRESENT_ALTERNATES';
         
         addChatMessage("I found several potential alternates based on your requirements. However, the product search integration is not yet implemented. For now, you can add specific ASINs manually below.");
         
@@ -3643,7 +3633,7 @@ Return top 8 products ranked by suitability as JSON array.
         }
         
         // Check if already added
-        if (conversationState.selectedAlternates.some(alt => alt.asin === extractedASIN)) {
+        if (enhancedConversationState.selectedAlternates.some(alt => alt.asin === extractedASIN)) {
             showInputError(asinInput, "This ASIN has already been added.");
             return;
         }
@@ -3660,7 +3650,7 @@ Return top 8 products ranked by suitability as JSON array.
             addedAt: new Date().toISOString()
         };
         
-        conversationState.selectedAlternates.push(alternate);
+        enhancedConversationState.selectedAlternates.push(alternate);
         
         // Update UI
         updateManualASINsList();
@@ -3730,13 +3720,13 @@ Return top 8 products ranked by suitability as JSON array.
         const sanitizedRequirements = validation.requirements;
         const keywords = INPUT_HANDLERS.extractKeywords(sanitizedRequirements);
         
-        conversationState.requirements = {
+        enhancedConversationState.requirements = {
             text: sanitizedRequirements,
             keywords: keywords,
             processedAt: new Date().toISOString()
         };
         
-        conversationState.step = 'PROCESS_REQUIREMENTS';
+        enhancedConversationState.step = 'PROCESS_REQUIREMENTS';
         
         // Provide feedback on extracted keywords
         let keywordFeedback = '';
@@ -3748,7 +3738,7 @@ Return top 8 products ranked by suitability as JSON array.
         
         // Simulate processing delay
         setTimeout(() => {
-            processRequirements(conversationState.requirements);
+            processRequirements(enhancedConversationState.requirements);
         }, 2000);
     }
     
@@ -3757,7 +3747,7 @@ Return top 8 products ranked by suitability as JSON array.
         const listContainer = document.querySelector('#cqe-manual-asins-list');
         if (!listContainer) return;
         
-        const manualASINs = conversationState.selectedAlternates.filter(alt => alt.source === 'manual');
+        const manualASINs = enhancedConversationState.selectedAlternates.filter(alt => alt.source === 'manual');
         
         if (manualASINs.length === 0) {
             listContainer.innerHTML = '';
@@ -3784,7 +3774,7 @@ Return top 8 products ranked by suitability as JSON array.
     
     // Remove manual ASIN
     function removeManualASIN(asin) {
-        conversationState.selectedAlternates = conversationState.selectedAlternates.filter(alt => alt.asin !== asin);
+        enhancedConversationState.selectedAlternates = enhancedConversationState.selectedAlternates.filter(alt => alt.asin !== asin);
         updateManualASINsList();
         updateConfirmButton();
         addChatMessage(`Removed ASIN ${asin} from your alternates list.`, false);
@@ -3796,11 +3786,11 @@ Return top 8 products ranked by suitability as JSON array.
         const confirmBtn = document.querySelector('#cqe-confirm-alternates');
         if (!confirmBtn) return;
         
-        const hasAlternates = conversationState.selectedAlternates.length > 0;
+        const hasAlternates = enhancedConversationState.selectedAlternates.length > 0;
         confirmBtn.disabled = !hasAlternates;
         
         if (hasAlternates) {
-            confirmBtn.textContent = `Add ${conversationState.selectedAlternates.length} Alternate${conversationState.selectedAlternates.length > 1 ? 's' : ''}`;
+            confirmBtn.textContent = `Add ${enhancedConversationState.selectedAlternates.length} Alternate${enhancedConversationState.selectedAlternates.length > 1 ? 's' : ''}`;
         } else {
             confirmBtn.textContent = 'Add Selected Alternates';
         }
@@ -3823,7 +3813,7 @@ Return top 8 products ranked by suitability as JSON array.
     
     // Reset conversation state
     function resetConversationState(productData) {
-        conversationState = {
+        enhancedConversationState = {
             step: 'WILLINGNESS_CHECK',
             productData: productData,
             requirements: null,
@@ -3855,16 +3845,16 @@ Return top 8 products ranked by suitability as JSON array.
     
     // Handle confirm alternates button
     function handleConfirmAlternates() {
-        if (conversationState.selectedAlternates.length === 0) {
+        if (enhancedConversationState.selectedAlternates.length === 0) {
             addChatMessage("No alternates selected. Please add some ASINs first.", false);
             return;
         }
         
-        log('Confirming alternates:', conversationState.selectedAlternates);
+        log('Confirming alternates:', enhancedConversationState.selectedAlternates);
         
         // TODO: Integrate with CQE API in Phase 5
         // For now, just show success message
-        addChatMessage(`Great! I've recorded ${conversationState.selectedAlternates.length} alternate ASIN${conversationState.selectedAlternates.length > 1 ? 's' : ''} for your request. This information will be shared with suppliers to help them provide better quotes.`, false);
+        addChatMessage(`Great! I've recorded ${enhancedConversationState.selectedAlternates.length} alternate ASIN${enhancedConversationState.selectedAlternates.length > 1 ? 's' : ''} for your request. This information will be shared with suppliers to help them provide better quotes.`, false);
         
         // Close modal after short delay
         setTimeout(() => {
@@ -4030,41 +4020,19 @@ Return top 8 products ranked by suitability as JSON array.
         
         // Apply styling based on target element
         if (targetElement.tagName === 'BUTTON') {
-            // Copy styling from target button
+            // Copy exact styling from target button (Add Item button)
             alternatesButton.className = targetElement.className;
-            
-            // Make it outline style if it's not already
-            if (alternatesButton.className.includes('b-button') && !alternatesButton.className.includes('b-outline')) {
-                alternatesButton.className += ' b-outline';
-            } else if (!alternatesButton.className.includes('b-button')) {
-                alternatesButton.className = 'b-button b-outline';
-            }
             
             // Add spacing
             alternatesButton.style.marginLeft = '0.5rem';
         } else {
             // Default styling for non-button targets
-            alternatesButton.className = 'b-button b-outline';
+            alternatesButton.className = 'b-button';
             alternatesButton.style.cssText = `
                 margin: 0.5rem;
                 padding: 8px 16px;
-                background: #fff;
-                color: #007185;
-                border: 1px solid #007185;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
             `;
         }
-        
-        // Add hover effects
-        alternatesButton.addEventListener('mouseenter', () => {
-            alternatesButton.style.backgroundColor = '#f0f8ff';
-        });
-        
-        alternatesButton.addEventListener('mouseleave', () => {
-            alternatesButton.style.backgroundColor = targetElement.tagName === 'BUTTON' ? '' : '#fff';
-        });
         
         // Add click handler
         alternatesButton.addEventListener('click', handleAddAlternatesClick);
@@ -4204,25 +4172,18 @@ Return top 8 products ranked by suitability as JSON array.
         
         // Apply styling based on target
         if (targetElement.tagName === 'BUTTON') {
-            // Copy classes from target button
+            // Copy exact classes from target button (Add Item button)
             button.className = targetElement.className;
-            if (button.className.includes('b-button') && !button.className.includes('b-outline')) {
-                button.className += ' b-outline';
-            } else if (!button.className.includes('b-button')) {
-                button.className = 'b-button b-outline';
-            }
             button.style.marginLeft = '0.5rem';
         } else {
             // Use prominent styling for non-button targets
+            button.className = 'b-button';
             button.style.cssText = `
                 position: fixed;
                 top: 20px;
                 right: 20px;
                 z-index: 10000;
                 padding: 12px 20px;
-                background: #ff9900;
-                color: white;
-                border: none;
                 border-radius: 6px;
                 cursor: pointer;
                 font-size: 16px;
@@ -4364,7 +4325,7 @@ Return top 8 products ranked by suitability as JSON array.
             // Create our "Add Alternates" button
             const alternatesButton = document.createElement('button');
             alternatesButton.id = 'cqe-add-alternates-btn';
-            alternatesButton.className = 'b-button b-outline';
+            alternatesButton.className = addItemButton.className; // Copy exact classes from Add Item button
             alternatesButton.type = 'button';
             alternatesButton.textContent = 'Add Alternates';
             alternatesButton.style.marginLeft = '0.5rem';
@@ -4382,7 +4343,7 @@ Return top 8 products ranked by suitability as JSON array.
             
             const alternatesButton = document.createElement('button');
             alternatesButton.id = 'cqe-add-alternates-btn';
-            alternatesButton.className = 'b-button b-outline';
+            alternatesButton.className = 'b-button'; // Use solid button style like Add Item button
             alternatesButton.type = 'button';
             alternatesButton.textContent = 'Add Alternates';
             alternatesButton.style.marginTop = '0.5rem';
