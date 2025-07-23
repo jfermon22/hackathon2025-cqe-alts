@@ -4695,6 +4695,73 @@ Return top 8 products ranked by suitability as JSON array.
         }, 2000);
     }
     
+    // Fetch product description from Amazon detail page
+    async function fetchProductDescription(asin) {
+        if (!asin) {
+            log('No ASIN provided for description fetch');
+            return null;
+        }
+        
+        try {
+            log(`🔍 Fetching product description for ASIN: ${asin}`);
+            
+            const detailPageUrl = `https://amazon.com/dp/${asin}`;
+            log(`📄 Fetching from: ${detailPageUrl}`);
+            
+            const response = await fetch(detailPageUrl, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+            });
+            
+            if (!response.ok) {
+                log(`❌ Failed to fetch product page: ${response.status} ${response.statusText}`);
+                return null;
+            }
+            
+            const html = await response.text();
+            log(`✅ Successfully fetched product page (${html.length} characters)`);
+            
+            // Parse HTML to extract feature bullets
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Look for feature bullets section
+            const featureBullets = doc.querySelector('#feature-bullets');
+            
+            if (!featureBullets) {
+                log('⚠️ No feature-bullets section found on product page');
+                return null;
+            }
+            
+            // Extract bullet points
+            const bulletPoints = featureBullets.querySelectorAll('span.a-list-item');
+            const descriptions = [];
+            
+            bulletPoints.forEach(bullet => {
+                const text = bullet.textContent?.trim();
+                if (text && text.length > 10 && !text.includes('Make sure this fits')) {
+                    descriptions.push(text);
+                }
+            });
+            
+            if (descriptions.length === 0) {
+                log('⚠️ No valid descriptions found in feature bullets');
+                return null;
+            }
+            
+            const fullDescription = descriptions.join(' • ');
+            log(`📝 Extracted product description (${descriptions.length} bullets):`, fullDescription);
+            
+            return fullDescription;
+            
+        } catch (error) {
+            log('❌ Error fetching product description:', error);
+            return null;
+        }
+    }
+    
     // Open modal with product context - Updated for POC functionality
     function openModal(productData) {
         let modal = document.querySelector('#cqe-alternates-modal');
@@ -4702,6 +4769,25 @@ Return top 8 products ranked by suitability as JSON array.
         // Create modal if it doesn't exist
         if (!modal) {
             modal = createModal();
+        }
+        
+        // Store product description for later use
+        let productDescription = null;
+        
+        // Fetch product description in background if ASIN is available
+        if (productData && productData.asin) {
+            fetchProductDescription(productData.asin).then(description => {
+                productDescription = description;
+                if (description) {
+                    log(`💾 Product description stored for ASIN ${productData.asin}:`, description);
+                    // Store in global variable for later use
+                    window.currentProductDescription = description;
+                } else {
+                    log(`⚠️ No description retrieved for ASIN ${productData.asin}`);
+                }
+            }).catch(error => {
+                log('❌ Error in background description fetch:', error);
+            });
         }
         
         // Update product context
