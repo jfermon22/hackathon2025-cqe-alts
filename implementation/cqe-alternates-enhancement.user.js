@@ -250,22 +250,26 @@
 
                             <div class="cqe-form-group">
                                 <label for="cqe-intent">Customer Usage Intent</label>
-                                <textarea id="cqe-intent" class="b-form-control" rows="2" placeholder="Describe what the product is intended for..."></textarea>
+                                <textarea id="cqe-intent" class="b-form-control" rows="2" maxlength="200" placeholder="Describe what the product is intended for..."></textarea>
+                                <div class="character-count" id="cqe-intent-count">0/200</div>
                             </div>
 
                             <div class="cqe-form-group">
                                 <label for="cqe-item-description">Item Description</label>
-                                <input type="text" id="cqe-item-description" class="b-form-control" placeholder="Brief description of the item (e.g., laptop, blue pens, binder dividers)">
+                                <textarea id="cqe-item-description" class="b-form-control" rows="2" maxlength="200" placeholder="Brief description of the item (e.g., laptop, blue pens, binder dividers)"></textarea>
+                                <div class="character-count" id="cqe-item-description-count">0/200</div>
                             </div>
 
                             <div class="cqe-form-group">
                                 <label for="cqe-must-have">Must-Have Attributes</label>
-                                <textarea id="cqe-must-have" class="b-form-control" rows="2" placeholder="Critical product features required (e.g., 256 GB of storage space, USB-C connector)"></textarea>
+                                <textarea id="cqe-must-have" class="b-form-control" rows="2" maxlength="200" placeholder="Critical product features required (e.g., 256 GB of storage space, USB-C connector)"></textarea>
+                                <div class="character-count" id="cqe-must-have-count">0/200</div>
                             </div>
 
                             <div class="cqe-form-group">
                                 <label for="cqe-preferred">Preferred Attributes</label>
-                                <textarea id="cqe-preferred" class="b-form-control" rows="2" placeholder="Nice-to-have characteristics or preferences (e.g., Black color preferred, but blue is acceptable)"></textarea>
+                                <textarea id="cqe-preferred" class="b-form-control" rows="2" maxlength="200" placeholder="Nice-to-have characteristics or preferences (e.g., Black color preferred, but blue is acceptable)"></textarea>
+                                <div class="character-count" id="cqe-preferred-count">0/200</div>
                             </div>
 
                             <div class="cqe-warning">
@@ -1061,6 +1065,60 @@
             
             // Reset UI state
             updateCounterAndUI();
+            
+            // Reset character counts
+            updateAllCharacterCounts();
+        }
+        
+        // Character counting functions
+        function updateCharacterCount(textareaId, counterId, maxLength = 200) {
+            const textarea = document.getElementById(textareaId);
+            const counter = document.getElementById(counterId);
+            
+            if (!textarea || !counter) return;
+            
+            const currentLength = textarea.value.length;
+            counter.textContent = `${currentLength}/${maxLength}`;
+            
+            // Update styling based on character count
+            counter.classList.remove('warning', 'error');
+            if (currentLength > maxLength * 0.9) {
+                counter.classList.add('warning');
+            }
+            if (currentLength >= maxLength) {
+                counter.classList.add('error');
+            }
+        }
+        
+        function updateAllCharacterCounts() {
+            updateCharacterCount('cqe-intent', 'cqe-intent-count');
+            updateCharacterCount('cqe-item-description', 'cqe-item-description-count');
+            updateCharacterCount('cqe-must-have', 'cqe-must-have-count');
+            updateCharacterCount('cqe-preferred', 'cqe-preferred-count');
+        }
+        
+        function setupCharacterCountListeners() {
+            const fields = [
+                { textareaId: 'cqe-intent', counterId: 'cqe-intent-count' },
+                { textareaId: 'cqe-item-description', counterId: 'cqe-item-description-count' },
+                { textareaId: 'cqe-must-have', counterId: 'cqe-must-have-count' },
+                { textareaId: 'cqe-preferred', counterId: 'cqe-preferred-count' }
+            ];
+            
+            fields.forEach(field => {
+                const textarea = document.getElementById(field.textareaId);
+                if (textarea) {
+                    textarea.addEventListener('input', () => {
+                        updateCharacterCount(field.textareaId, field.counterId);
+                    });
+                    textarea.addEventListener('paste', () => {
+                        // Update count after paste event completes
+                        setTimeout(() => {
+                            updateCharacterCount(field.textareaId, field.counterId);
+                        }, 10);
+                    });
+                }
+            });
         }
 
         // Event listeners
@@ -1111,6 +1169,12 @@
         
         // Reset form when modal is opened
         resetForm();
+        
+        // Setup character count listeners
+        setupCharacterCountListeners();
+        
+        // Initialize character counts
+        updateAllCharacterCounts();
         
         log('POC Modal functionality initialized successfully');
     }
@@ -1522,6 +1586,23 @@
                     font-size: 0.8rem;
                     color: #999;
                     font-family: monospace;
+                }
+                
+                /* Character count styling */
+                .character-count {
+                    font-size: 0.75rem;
+                    color: #666;
+                    text-align: right;
+                    margin-top: 2px;
+                    font-family: monospace;
+                }
+                
+                .character-count.warning {
+                    color: #ff9800;
+                }
+                
+                .character-count.error {
+                    color: #f44336;
                 }
             </style>
         `;
@@ -5221,6 +5302,11 @@ Return top 8 products ranked by suitability as JSON array.
         
         // Show modal
         modal.style.display = 'flex';
+        
+        // Initialize character counts when modal opens
+        setTimeout(() => {
+            updateAllCharacterCounts();
+        }, 50);
         
         // Focus on ASIN input instead of chat input
         setTimeout(() => {
