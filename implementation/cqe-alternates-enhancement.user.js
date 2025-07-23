@@ -203,11 +203,12 @@
                         <button class="cqe-modal-close" type="button">&times;</button>
                     </div>
                     
-                    <div class="cqe-product-context" id="cqe-product-context">
-                        <!-- Product context will be inserted here -->
-                    </div>
-                    
-                    <div class="cqe-chat-container">
+                    <div class="cqe-modal-body">
+                        <div class="cqe-product-context" id="cqe-product-context">
+                            <!-- Product context will be inserted here -->
+                        </div>
+                        
+                        <div class="cqe-chat-container">
                         <div id="cqe-chat-messages" class="cqe-chat-messages">
                             <div class="chat-message assistant">
                                 <strong>Assistant:</strong> I'll help you find suitable alternate products. Let me start by asking: would you be willing to accept alternate ASINs for this request? This can help you get better pricing and availability options.
@@ -294,7 +295,6 @@
                     width: 600px;
                     max-width: 90vw;
                     max-height: 80vh;
-                    overflow: hidden;
                     display: flex;
                     flex-direction: column;
                 }
@@ -307,6 +307,33 @@
                     justify-content: space-between;
                     align-items: center;
                     background: #f8f9fa;
+                }
+                
+                /* Modal body - scrollable content area */
+                .cqe-modal-body {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 0;
+                    min-height: 0; /* Important for flex child to shrink */
+                }
+                
+                /* Custom scrollbar styling */
+                .cqe-modal-body::-webkit-scrollbar {
+                    width: 8px;
+                }
+                
+                .cqe-modal-body::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-radius: 4px;
+                }
+                
+                .cqe-modal-body::-webkit-scrollbar-thumb {
+                    background: #c1c1c1;
+                    border-radius: 4px;
+                }
+                
+                .cqe-modal-body::-webkit-scrollbar-thumb:hover {
+                    background: #a8a8a8;
                 }
                 
                 .cqe-modal-header h3 {
@@ -343,7 +370,6 @@
                 
                 /* Chat container */
                 .cqe-chat-container {
-                    flex: 1;
                     display: flex;
                     flex-direction: column;
                     min-height: 300px;
@@ -353,7 +379,8 @@
                     flex: 1;
                     padding: 1rem;
                     overflow-y: auto;
-                    max-height: 300px;
+                    max-height: 250px;
+                    min-height: 200px;
                 }
                 
                 /* Chat messages */
