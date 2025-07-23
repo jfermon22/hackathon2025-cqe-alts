@@ -297,31 +297,31 @@
         const addAsinBtn = document.getElementById('cqe-add-asin-btn');
         const limitWarning = document.getElementById('cqe-limit-warning');
         
-        // Mock product data for demonstration
+        // Mock product data for demonstration - Real binder divider products
         const mockProducts = [
             {
-                asin: 'ALT1234567',
-                name: '256GB External SSD Drive',
-                description: 'Fast USB-C portable storage with metal casing',
-                image: 'https://via.placeholder.com/60x60/4CAF50/white?text=SSD'
+                asin: 'B09GHZWDCS',
+                name: 'Avery Big Tab Insertable Dividers for 3 Ring Binders, 5-Tab Sets, Buff Paper, Clear Tabs, 6 Binder Divider Sets (26177)',
+                description: 'Insertable dividers with clear tabs for easy organization',
+                image: 'https://m.media-amazon.com/images/I/71Uq+SoJnsL._AC_SX679_.jpg'
             },
             {
-                asin: 'ALT2345678',
-                name: '512GB USB Flash Drive',
-                description: 'Compact USB 3.0 flash drive, waterproof design',
-                image: 'https://via.placeholder.com/60x60/2196F3/white?text=USB'
+                asin: 'B08TB5W8XP',
+                name: 'Avery Big Tab Extra-Wide Insertable Clear Tab Dividers for 3 Ring Binders, 8-Tab Set, White, 6 Sets (11254)',
+                description: 'Extra-wide clear tab dividers for enhanced visibility',
+                image: 'https://m.media-amazon.com/images/I/71Y18aTe4DL._AC_SX679_.jpg'
             },
             {
-                asin: 'ALT3456789',
-                name: 'Premium Black Ink Cartridge',
-                description: 'Compatible with HP printers, high-yield',
-                image: 'https://via.placeholder.com/60x60/FF9800/white?text=INK'
+                asin: 'B0CQ4YNHX8',
+                name: 'Binder Dividers for 3 Ring Binder, 1/5 Cut Tabs, Letter Size, Blank Write On Page Dividers with 5 Big Tabs for School Office Home, 4 Sets, 20 Dividers, White',
+                description: 'Blank write-on dividers with big tabs for customization',
+                image: 'https://m.media-amazon.com/images/I/51ccYH2KlGL._AC_SX679_.jpg'
             },
             {
-                asin: 'ALT4567890',
-                name: 'Wireless Ergonomic Mouse',
-                description: 'Battery-efficient with USB-C charging',
-                image: 'https://via.placeholder.com/60x60/9C27B0/white?text=MOUSE'
+                asin: 'B097J3MSF9',
+                name: 'Avery 8 Tab Binder Dividers, Insertable Clear Big Tabs, 1 Set Pack, 8 Packs, 8 Sets Total (11112)',
+                description: 'Clear big tabs with insertable labels for professional organization',
+                image: 'https://m.media-amazon.com/images/I/81MuNRHMKWS._AC_SX679_.jpg'
             }
         ];
 
