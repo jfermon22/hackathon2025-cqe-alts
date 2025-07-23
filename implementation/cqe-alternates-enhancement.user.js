@@ -5,7 +5,7 @@
 // @description  Enhanced alternate selection for Custom Quotes Engine
 // @author       Amazon
 // @match        https://www.amazon.com/ab/bulk-order/input*
-// @grant        none
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 (function() {
@@ -4708,19 +4708,33 @@ Return top 8 products ranked by suitability as JSON array.
             const detailPageUrl = `https://amazon.com/dp/${asin}`;
             log(`📄 Fetching from: ${detailPageUrl}`);
             
-            const response = await fetch(detailPageUrl, {
-                method: 'GET',
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
+            // Use GM_xmlhttpRequest to bypass CORS restrictions
+            const response = await new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: detailPageUrl,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    },
+                    onload: function(response) {
+                        resolve(response);
+                    },
+                    onerror: function(error) {
+                        reject(error);
+                    },
+                    ontimeout: function() {
+                        reject(new Error('Request timeout'));
+                    },
+                    timeout: 10000 // 10 second timeout
+                });
             });
             
-            if (!response.ok) {
+            if (response.status !== 200) {
                 log(`❌ Failed to fetch product page: ${response.status} ${response.statusText}`);
                 return null;
             }
             
-            const html = await response.text();
+            const html = response.responseText;
             log(`✅ Successfully fetched product page (${html.length} characters)`);
             
             // Parse HTML to extract feature bullets
