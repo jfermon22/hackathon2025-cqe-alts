@@ -1957,11 +1957,16 @@
         
         // Initialize AWS SDK
         initializeSDK: async function() {
+            console.log('🔍 DEBUG: initializeSDK called');
+            console.log('🔍 DEBUG: sdkLoaded:', this.sdkLoaded, 'window.AWS:', !!window.AWS);
+            
             if (this.sdkLoaded && window.AWS) {
+                console.log('🔍 DEBUG: SDK already loaded, returning true');
                 return true;
             }
             
             try {
+                console.log('🔍 DEBUG: Loading AWS SDK from CDN...');
                 log('Loading AWS SDK...');
                 
                 // Load AWS SDK from CDN
@@ -1970,14 +1975,24 @@
                 script.async = true;
                 
                 await new Promise((resolve, reject) => {
-                    script.onload = resolve;
-                    script.onerror = reject;
+                    script.onload = () => {
+                        console.log('🔍 DEBUG: AWS SDK script loaded successfully');
+                        resolve();
+                    };
+                    script.onerror = (error) => {
+                        console.log('🔍 DEBUG: AWS SDK script failed to load:', error);
+                        reject(error);
+                    };
                     document.head.appendChild(script);
                 });
+                
+                console.log('🔍 DEBUG: Checking if window.AWS is available:', !!window.AWS);
                 
                 if (!window.AWS) {
                     throw new Error('AWS SDK failed to load');
                 }
+                
+                console.log('🔍 DEBUG: Configuring AWS...');
                 
                 // Configure AWS with STS tokens
                 window.AWS.config.update({
@@ -1985,10 +2000,12 @@
                 });
                 
                 this.sdkLoaded = true;
+                console.log('🔍 DEBUG: AWS SDK loaded and configured successfully');
                 log('AWS SDK loaded successfully');
                 return true;
                 
             } catch (error) {
+                console.log('🔍 DEBUG: Failed to load AWS SDK:', error);
                 log('Failed to load AWS SDK:', error);
                 return false;
             }
@@ -2037,10 +2054,15 @@
         
         // Perform the actual Bedrock Agent request
         performRequest: async function(prompt, config) {
+            console.log('🔍 DEBUG: performRequest called with prompt:', prompt.substring(0, 50) + '...');
+            console.log('🔍 DEBUG: Using real Bedrock Agent implementation');
+            
             try {
+                console.log('🔍 DEBUG: Attempting to initialize client...');
                 const client = await this.initializeClient();
                 const sessionId = this.getSessionId();
                 
+                console.log('🔍 DEBUG: Client initialized, invoking Bedrock Agent...');
                 log('Invoking Bedrock Agent with prompt:', prompt.substring(0, 100) + '...');
                 
                 const params = {
@@ -2050,8 +2072,12 @@
                     inputText: prompt
                 };
                 
+                console.log('🔍 DEBUG: Bedrock Agent params:', params);
+                
                 // Make the actual Bedrock Agent call
                 const response = await client.invokeAgent(params).promise();
+                
+                console.log('🔍 DEBUG: Bedrock Agent response received:', response);
                 
                 if (!response.completion) {
                     throw new Error('No completion in response');
@@ -2067,6 +2093,8 @@
                     }
                 }
                 
+                console.log('🔍 DEBUG: Final completion:', completion);
+                
                 return {
                     success: true,
                     response: completion,
@@ -2080,6 +2108,10 @@
                 };
                 
             } catch (error) {
+                console.log('🔍 DEBUG: Error in performRequest:', error);
+                console.log('🔍 DEBUG: Error message:', error.message);
+                console.log('🔍 DEBUG: Error stack:', error.stack);
+                
                 log('Bedrock Agent request error:', error);
                 
                 // Check for authentication errors
