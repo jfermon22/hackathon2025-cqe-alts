@@ -1902,17 +1902,23 @@
         
         // Make LLM request with retry logic
         makeRequest: async function(prompt, options = {}) {
+            console.log('🔍 DEBUG: makeRequest called with prompt:', prompt.substring(0, 50) + '...');
+            console.log('🔍 DEBUG: makeRequest options:', options);
+            
             const config = { ...this.CONFIG, ...options };
             let lastError = null;
             
             for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
                 try {
-                    log(`Strands API attempt ${attempt}/${config.maxRetries}`);
+                    console.log(`🔍 DEBUG: Bedrock Agent attempt ${attempt}/${config.maxRetries}`);
+                    log(`Bedrock Agent attempt ${attempt}/${config.maxRetries}`);
                     
+                    console.log('🔍 DEBUG: About to call this.performRequest...');
                     const response = await this.performRequest(prompt, config);
+                    console.log('🔍 DEBUG: performRequest returned:', response);
                     
                     if (response.success) {
-                        log('Strands API request successful');
+                        log('Bedrock Agent request successful');
                         return response;
                     } else {
                         throw new Error(response.error || 'Unknown API error');
@@ -2619,6 +2625,10 @@ Return top 8 products ranked by suitability as JSON array.
         
         // Generate intelligent response using LLM
         generateResponse: async function(responseType, context = {}) {
+            console.log('🔍 DEBUG: INTELLIGENT_RESPONSES.generateResponse called');
+            console.log('🔍 DEBUG: responseType:', responseType);
+            console.log('🔍 DEBUG: context:', context);
+            
             const template = this.RESPONSE_CONTEXTS[responseType];
             if (!template) {
                 log(`No template found for response type: ${responseType}`);
@@ -2632,6 +2642,9 @@ Return top 8 products ranked by suitability as JSON array.
                     const placeholder = `{${key}}`;
                     prompt = prompt.replace(new RegExp(placeholder, 'g'), value || 'not specified');
                 }
+                
+                console.log('🔍 DEBUG: About to call BEDROCK_AGENT_INTEGRATION.makeRequest');
+                console.log('🔍 DEBUG: prompt:', prompt.substring(0, 100) + '...');
                 
                 const response = await BEDROCK_AGENT_INTEGRATION.makeRequest(prompt, {
                     model: 'claude-3-sonnet',
