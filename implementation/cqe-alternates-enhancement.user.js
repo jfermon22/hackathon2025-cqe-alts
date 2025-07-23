@@ -1864,12 +1864,13 @@
         }
     }
     
-    // Strands SDK Integration System
-    const STRANDS_INTEGRATION = {
+    // AWS Bedrock Agent Runtime Integration System
+    const BEDROCK_AGENT_INTEGRATION = {
         // Configuration
         CONFIG: {
-            endpoint: 'https://strands.amazon.com/api/v1',
-            model: 'claude-3-sonnet', // Default model
+            region: 'us-west-2',
+            agentId: 'CAP1I3RZLN',
+            agentAliasId: 'TSTALIASID', // TODO: Replace with actual alias ID
             timeout: 30000, // 30 second timeout
             maxRetries: 3,
             retryDelay: 1000 // 1 second base delay
@@ -2045,7 +2046,7 @@ Customer input: "${requirements.text || requirements}"
         `.trim();
         
         try {
-            const response = await STRANDS_INTEGRATION.makeRequest(prompt, {
+            const response = await BEDROCK_AGENT_INTEGRATION.makeRequest(prompt, {
                 model: 'claude-3-sonnet',
                 temperature: 0.3 // Lower temperature for structured extraction
             });
@@ -2101,7 +2102,7 @@ Requirements: ${reqText}
         `.trim();
         
         try {
-            const response = await STRANDS_INTEGRATION.makeRequest(prompt, {
+            const response = await BEDROCK_AGENT_INTEGRATION.makeRequest(prompt, {
                 model: 'claude-3-sonnet',
                 temperature: 0.5 // Moderate creativity for search terms
             });
@@ -2167,7 +2168,7 @@ Return top 8 products ranked by suitability as JSON array.
         `.trim();
         
         try {
-            const response = await STRANDS_INTEGRATION.makeRequest(prompt, {
+            const response = await BEDROCK_AGENT_INTEGRATION.makeRequest(prompt, {
                 model: 'claude-3-sonnet',
                 temperature: 0.4 // Balanced creativity for evaluation
             });
@@ -2272,8 +2273,8 @@ Return top 8 products ranked by suitability as JSON array.
         
         // Add LLM integration status
         console.log('9. LLM Integration:');
-        console.log('   Strands endpoint:', STRANDS_INTEGRATION.CONFIG.endpoint);
-        console.log('   Default model:', STRANDS_INTEGRATION.CONFIG.model);
+        console.log('   Strands endpoint:', BEDROCK_AGENT_INTEGRATION.CONFIG.endpoint);
+        console.log('   Default model:', BEDROCK_AGENT_INTEGRATION.CONFIG.model);
         console.log('   Current conversation state:', enhancedConversationState);
         
         console.log('=== End Debug Info ===');
@@ -2481,7 +2482,7 @@ Return top 8 products ranked by suitability as JSON array.
                     prompt = prompt.replace(new RegExp(placeholder, 'g'), value || 'not specified');
                 }
                 
-                const response = await STRANDS_INTEGRATION.makeRequest(prompt, {
+                const response = await BEDROCK_AGENT_INTEGRATION.makeRequest(prompt, {
                     model: 'claude-3-sonnet',
                     temperature: 0.7, // Higher creativity for natural responses
                     maxTokens: 200 // Limit response length
@@ -4835,7 +4836,7 @@ Return top 8 products ranked by suitability as JSON array.
         }
         
         try {
-            const response = await STRANDS_INTEGRATION.makeRequest(prompt, options);
+            const response = await BEDROCK_AGENT_INTEGRATION.makeRequest(prompt, options);
             
             if (response.success) {
                 LLM_FALLBACK_SYSTEM.updateCircuitBreaker(true);
