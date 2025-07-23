@@ -2711,15 +2711,21 @@ Return top 8 products ranked by suitability as JSON array.
             enhancedConversationState.step = 'PRESENT_ALTERNATES';
             
             // Generate intelligent "no results" message since search isn't implemented yet
-            const noResultsMessage = INTELLIGENT_RESPONSES.generateResponse('no_results_encouragement', {
+            INTELLIGENT_RESPONSES.generateResponse('no_results_encouragement', {
                 product_name: enhancedConversationState.productData?.name || 'this product',
                 product_category: detectProductCategory(enhancedConversationState.productData),
                 requirements_summary: generateContextAwareRequirementsSummary(),
                 search_attempted: 'comprehensive product database search'
-            });
-            
-            noResultsMessage.then(message => {
+            }).then(message => {
                 addChatMessage(message);
+                
+                if (enhancedConversationState.approach === 'both' || enhancedConversationState.approach === 'guided') {
+                    showManualASINSection();
+                    showAlternatesSelection();
+                }
+            }).catch(error => {
+                log('Error generating no results message:', error);
+                addChatMessage("I didn't find perfect matches in my initial search, but you can add specific ASINs if you have alternates in mind, or we can try a broader search approach.");
                 
                 if (enhancedConversationState.approach === 'both' || enhancedConversationState.approach === 'guided') {
                     showManualASINSection();
@@ -2729,132 +2735,6 @@ Return top 8 products ranked by suitability as JSON array.
             
         }, 3000);
     }
-        log('Processing enhanced requirements with LLM:', enhancedConversationState.requirements);
-        
-        // Generate summary of requirements
-        const reqSummary = generateContextAwareRequirementsSummary();
-        const productName = enhancedConversationState.productData?.name || 'this product';
-        
-        addChatMessage(`Based on your answers about ${productName}, I understand you're looking for:\n\n${reqSummary}\n\nLet me analyze your requirements and search for suitable alternates...`);
-        
-        try {
-            // Use LLM to process requirements if available
-            const llmResult = await processRequirementsWithLLM(enhancedConversationState.requirements);
-            
-            if (llmResult.success) {
-                // Merge LLM results with existing requirements
-                enhancedConversationState.requirements = {
-                    ...enhancedConversationState.requirements,
-                    ...llmResult.requirements,
-                    llmProcessed: true,
-                    processedAt: new Date().toISOString()
-                };
-                
-                addChatMessage("I've analyzed your requirements using advanced AI processing. Let me search for the best alternates...");
-                
-                // Generate search terms with LLM
-                const searchTermsResult = await generateSearchTermsWithLLM(enhancedConversationState.requirements);
-                
-                if (searchTermsResult.success) {
-                    enhancedConversationState.searchTerms = searchTermsResult.searchTerms;
-                    addChatMessage(`I'll search using these optimized terms: ${searchTermsResult.searchTerms.join(', ')}`);
-                }
-                
-            } else if (llmResult.fallback) {
-                // Fall back to original processing
-                addChatMessage("Using standard requirements processing (AI service temporarily unavailable)...");
-            } else {
-                addChatMessage(`Processing requirements... (${llmResult.error})`);
-            }
-            
-        } catch (error) {
-            log('Error in LLM requirements processing:', error);
-            addChatMessage("Processing your requirements using standard analysis...");
-        }
-        
-        // Continue with existing flow
-        setTimeout(() => {
-            enhancedConversationState.step = 'PRESENT_ALTERNATES';
-            
-            const category = detectProductCategory(enhancedConversationState.productData);
-            let searchMessage = "Based on your requirements, I found several potential alternates.";
-            
-            // Add category-specific search insights
-            switch (category) {
-                case 'electronics':
-                    searchMessage += " I focused on devices with similar functionality but potentially better specs or value.";
-                    break;
-                case 'office_supplies':
-                    searchMessage += " I looked for supplies with equivalent performance but better bulk pricing or quality.";
-                    break;
-                case 'tools':
-                    searchMessage += " I searched for tools with similar capabilities but potentially better durability or ergonomics.";
-                    break;
-                default:
-                    searchMessage += " I searched across similar products that match your specific requirements.";
-            }
-            
-            if (enhancedConversationState.requirements.llmProcessed) {
-                searchMessage += " The AI analysis helped identify the most relevant alternatives.";
-            }
-            
-            searchMessage += " However, the product search integration is not yet implemented. For now, you can add specific ASINs manually below.";
-            
-            addChatMessage(searchMessage);
-            
-            if (enhancedConversationState.approach === 'both' || enhancedConversationState.approach === 'guided') {
-                showManualASINSection();
-                showAlternatesSelection();
-            }
-        }, 3000); // Longer delay to simulate LLM processing
-    }
-        const currentStep = ENHANCED_CONVERSATION_STEPS[enhancedConversationState.step];
-        
-        if (!currentStep) {
-            log('Error: Invalid conversation step:', enhancedConversationState.step);
-            return;
-        }
-        
-        // Add user message to chat
-        addChatMessage(userInput, true);
-        
-        // Process based on step type and context
-        switch (enhancedConversationState.step) {
-            case 'WILLINGNESS_CHECK':
-                handleEnhancedWillingnessResponse(userInput);
-                break;
-                
-            case 'EXPLAIN_BENEFITS':
-                handleBenefitsResponse(userInput);
-                break;
-                
-            case 'DETERMINE_APPROACH':
-                handleApproachSelection(userInput);
-                break;
-                
-            case 'REQUIREMENTS_GATHERING':
-                handleGuidedRequirements(userInput);
-                break;
-                
-            case 'REFINE_SELECTION':
-                handleSelectionRefinement(userInput);
-                break;
-                
-            case 'CONFIRM_SUBMISSION':
-                handleSubmissionConfirmation(userInput);
-                break;
-                
-            case 'MODIFY_SUMMARY':
-                handleSummaryModification(userInput);
-                break;
-                
-            default:
-                // For other steps, use standard processing
-                advanceEnhancedConversation();
-                break;
-        }
-    }
-    
     // Handle enhanced willingness check with more nuanced responses
     function handleEnhancedWillingnessResponse(response) {
         const normalizedResponse = response.toLowerCase().trim();
@@ -3202,52 +3082,61 @@ Return top 8 products ranked by suitability as JSON array.
         
         // Apply adaptations if needed before processing
         if (adaptations.length > 0) {
-            const adaptedResponse = await CONVERSATION_ADAPTATION.applyAdaptations(adaptations, {
-                originalMessage: userInput,
-                productName: enhancedConversationState.productData?.name,
-                currentStep: enhancedConversationState.step
-            });
-            
-            if (adaptedResponse) {
-                addChatMessage(adaptedResponse, false);
-                // Continue with normal processing after adaptation
+            try {
+                const adaptedResponse = await CONVERSATION_ADAPTATION.applyAdaptations(adaptations, {
+                    originalMessage: userInput,
+                    productName: enhancedConversationState.productData?.name,
+                    currentStep: enhancedConversationState.step
+                });
+                
+                if (adaptedResponse) {
+                    addChatMessage(adaptedResponse, false);
+                    // Continue with normal processing after adaptation
+                }
+            } catch (error) {
+                log('Error applying adaptations:', error);
             }
         }
         
         // Process based on step type and context
-        switch (enhancedConversationState.step) {
-            case 'WILLINGNESS_CHECK':
-                await handleEnhancedWillingnessResponse(userInput);
-                break;
-                
-            case 'EXPLAIN_BENEFITS':
-                handleBenefitsResponse(userInput);
-                break;
-                
-            case 'DETERMINE_APPROACH':
-                handleApproachSelection(userInput);
-                break;
-                
-            case 'REQUIREMENTS_GATHERING':
-                await handleGuidedRequirements(userInput);
-                break;
-                
-            case 'REFINE_SELECTION':
-                handleSelectionRefinement(userInput);
-                break;
-                
-            case 'CONFIRM_SUBMISSION':
-                handleSubmissionConfirmation(userInput);
-                break;
-                
-            case 'MODIFY_SUMMARY':
-                handleSummaryModification(userInput);
-                break;
-                
-            default:
-                // For other steps, use standard processing
-                advanceEnhancedConversation();
-                break;
+        try {
+            switch (enhancedConversationState.step) {
+                case 'WILLINGNESS_CHECK':
+                    await handleEnhancedWillingnessResponse(userInput);
+                    break;
+                    
+                case 'EXPLAIN_BENEFITS':
+                    handleBenefitsResponse(userInput);
+                    break;
+                    
+                case 'DETERMINE_APPROACH':
+                    handleApproachSelection(userInput);
+                    break;
+                    
+                case 'REQUIREMENTS_GATHERING':
+                    await handleGuidedRequirements(userInput);
+                    break;
+                    
+                case 'REFINE_SELECTION':
+                    handleSelectionRefinement(userInput);
+                    break;
+                    
+                case 'CONFIRM_SUBMISSION':
+                    handleSubmissionConfirmation(userInput);
+                    break;
+                    
+                case 'MODIFY_SUMMARY':
+                    handleSummaryModification(userInput);
+                    break;
+                    
+                default:
+                    // For other steps, use standard processing
+                    advanceEnhancedConversation();
+                    break;
+            }
+        } catch (error) {
+            log('Error processing user input:', error);
+            addChatMessage("I encountered an error processing your response. Please try again.", false);
         }
         
         // Track step progression if step changed
@@ -3266,8 +3155,11 @@ Return top 8 products ranked by suitability as JSON array.
     
     // Process user input based on current conversation step (updated for enhanced system)
     function processUserInput(userInput) {
-        // Use enhanced conversation processing
-        processEnhancedUserInput(userInput);
+        // Use enhanced conversation processing (async)
+        processEnhancedUserInput(userInput).catch(error => {
+            log('Error in enhanced conversation processing:', error);
+            addChatMessage("I encountered an error processing your response. Please try again.", false);
+        });
     }
     
     // Handle willingness check response (legacy - now uses enhanced version)
@@ -4050,137 +3942,394 @@ Return top 8 products ranked by suitability as JSON array.
         openModal(productData);
     }
     
-    // Add "Add Alternates" button near the ASIN input form (enhanced)
+    // Add "Add Alternates" button near the ASIN input form (enhanced with better detection)
     function addAlternatesButton() {
-        log('=== Add Alternates Button Placement Debug ===');
+        log('=== Add Alternates Button Placement (Enhanced) ===');
         
         // Check if button already exists
         const existingButton = document.querySelector('#cqe-add-alternates-btn');
         if (existingButton) {
             log('Add Alternates button already exists');
-            return;
+            return existingButton;
         }
         
-        // Try multiple strategies to find the ASIN input
-        let asinInput = null;
-        const selectors = [
-            CQE_SELECTORS.asinInput,
-            '#add-asin-or-isbn-form',
-            'input[placeholder*="ASIN"]',
-            'input[placeholder*="ISBN"]',
-            'input[id*="asin"]',
-            'input[name*="asin"]',
-            'input[type="text"]' // Last resort
-        ];
+        // Multiple strategies to find placement location
+        let targetElement = null;
+        let placementStrategy = '';
         
-        for (const selector of selectors) {
-            asinInput = document.querySelector(selector);
-            if (asinInput) {
-                log(`Found ASIN input with selector: ${selector}`, asinInput);
-                break;
+        // Strategy 1: Find Add Item button (primary target)
+        const addItemButton = document.querySelector('#add-item-btn');
+        if (addItemButton) {
+            targetElement = addItemButton;
+            placementStrategy = 'after-add-item-button';
+            log('Strategy 1: Found Add Item button');
+        }
+        
+        // Strategy 2: Find any submit button
+        if (!targetElement) {
+            const submitButtons = document.querySelectorAll('button[type="submit"]');
+            if (submitButtons.length > 0) {
+                targetElement = submitButtons[0];
+                placementStrategy = 'after-submit-button';
+                log('Strategy 2: Found submit button');
             }
         }
         
-        if (!asinInput) {
-            log('No ASIN input found with any selector');
-            log('Available inputs on page:', document.querySelectorAll('input'));
-            return;
-        }
-        
-        // Try multiple strategies to find the Add Item button
-        let addItemButton = null;
-        const buttonSelectors = [
-            '#add-item-btn',
-            'button[type="submit"]',
-            'button:contains("Add Item")',
-            '.b-button'
-        ];
-        
-        for (const selector of buttonSelectors) {
-            if (selector.includes('contains')) {
-                // Handle text-based selector
-                const buttons = document.querySelectorAll('button');
-                for (const btn of buttons) {
-                    if (btn.textContent.includes('Add Item')) {
-                        addItemButton = btn;
-                        break;
-                    }
+        // Strategy 3: Find button with "Add" text
+        if (!targetElement) {
+            const allButtons = document.querySelectorAll('button');
+            for (const btn of allButtons) {
+                if (btn.textContent && btn.textContent.toLowerCase().includes('add')) {
+                    targetElement = btn;
+                    placementStrategy = 'after-add-button';
+                    log('Strategy 3: Found button with "Add" text:', btn.textContent.trim());
+                    break;
                 }
-            } else {
-                addItemButton = document.querySelector(selector);
-            }
-            
-            if (addItemButton) {
-                log(`Found Add Item button with selector: ${selector}`, addItemButton);
-                break;
             }
         }
         
-        // Create our "Add Alternates" button
+        // Strategy 4: Find ASIN input and place button nearby
+        if (!targetElement) {
+            const asinInput = document.querySelector('#add-asin-or-isbn-form') || 
+                             document.querySelector('input[placeholder*="ASIN"]') ||
+                             document.querySelector('input[placeholder*="ISBN"]');
+            if (asinInput) {
+                targetElement = asinInput;
+                placementStrategy = 'after-asin-input';
+                log('Strategy 4: Found ASIN input field');
+            }
+        }
+        
+        // Strategy 5: Find any input field as last resort
+        if (!targetElement) {
+            const anyInput = document.querySelector('input[type="text"]') || 
+                            document.querySelector('input');
+            if (anyInput) {
+                targetElement = anyInput;
+                placementStrategy = 'after-any-input';
+                log('Strategy 5: Found any input field');
+            }
+        }
+        
+        // If still no target found, give up
+        if (!targetElement) {
+            log('❌ Could not find any suitable element for button placement');
+            return null;
+        }
+        
+        log('✅ Target element found:', targetElement);
+        log('Placement strategy:', placementStrategy);
+        log('Target element classes:', targetElement.className);
+        log('Target element parent:', targetElement.parentElement);
+        
+        // Create the Add Alternates button
         const alternatesButton = document.createElement('button');
         alternatesButton.id = 'cqe-add-alternates-btn';
-        alternatesButton.className = 'b-button b-outline';
         alternatesButton.type = 'button';
         alternatesButton.textContent = 'Add Alternates';
-        alternatesButton.style.cssText = `
-            margin-left: 0.5rem;
-            padding: 0.5rem 1rem;
-            border: 1px solid #007185;
-            background: white;
-            color: #007185;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-        `;
         
-        // Add hover effect
+        // Apply styling based on target element
+        if (targetElement.tagName === 'BUTTON') {
+            // Copy styling from target button
+            alternatesButton.className = targetElement.className;
+            
+            // Make it outline style if it's not already
+            if (alternatesButton.className.includes('b-button') && !alternatesButton.className.includes('b-outline')) {
+                alternatesButton.className += ' b-outline';
+            } else if (!alternatesButton.className.includes('b-button')) {
+                alternatesButton.className = 'b-button b-outline';
+            }
+            
+            // Add spacing
+            alternatesButton.style.marginLeft = '0.5rem';
+        } else {
+            // Default styling for non-button targets
+            alternatesButton.className = 'b-button b-outline';
+            alternatesButton.style.cssText = `
+                margin: 0.5rem;
+                padding: 8px 16px;
+                background: #fff;
+                color: #007185;
+                border: 1px solid #007185;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+            `;
+        }
+        
+        // Add hover effects
         alternatesButton.addEventListener('mouseenter', () => {
             alternatesButton.style.backgroundColor = '#f0f8ff';
         });
+        
         alternatesButton.addEventListener('mouseleave', () => {
-            alternatesButton.style.backgroundColor = 'white';
+            alternatesButton.style.backgroundColor = targetElement.tagName === 'BUTTON' ? '' : '#fff';
         });
         
         // Add click handler
         alternatesButton.addEventListener('click', handleAddAlternatesClick);
         
-        // Strategy 1: Place next to Add Item button
-        if (addItemButton) {
-            log('Placing button next to Add Item button');
-            addItemButton.parentNode.insertBefore(alternatesButton, addItemButton.nextSibling);
-            log('Add Alternates button added successfully next to Add Item button');
-            return;
-        }
-        
-        // Strategy 2: Place in the same container as ASIN input
-        const inputContainer = asinInput.closest('.b-flex') || 
-                              asinInput.closest('.b-form') || 
-                              asinInput.closest('div');
-        
-        if (inputContainer) {
-            log('Placing button in input container');
+        // Place button based on strategy
+        try {
+            switch (placementStrategy) {
+                case 'after-add-item-button':
+                case 'after-submit-button':
+                case 'after-add-button':
+                    // Insert after the button
+                    targetElement.parentNode.insertBefore(alternatesButton, targetElement.nextSibling);
+                    break;
+                    
+                case 'after-asin-input':
+                case 'after-any-input':
+                    // Insert after the input, or in its container
+                    if (targetElement.nextSibling) {
+                        targetElement.parentNode.insertBefore(alternatesButton, targetElement.nextSibling);
+                    } else {
+                        targetElement.parentNode.appendChild(alternatesButton);
+                    }
+                    break;
+                    
+                default:
+                    // Fallback: append to parent
+                    targetElement.parentNode.appendChild(alternatesButton);
+            }
             
-            // Create a wrapper div for better positioning
-            const buttonWrapper = document.createElement('div');
-            buttonWrapper.style.cssText = 'margin-top: 0.5rem; text-align: left;';
-            buttonWrapper.appendChild(alternatesButton);
+            log('✅ Add Alternates button placed successfully using strategy:', placementStrategy);
+            log('Button element:', alternatesButton);
+            log('Button classes:', alternatesButton.className);
             
-            inputContainer.appendChild(buttonWrapper);
-            log('Add Alternates button added to input container');
-            return;
+            // Verify button is visible
+            setTimeout(() => {
+                const isVisible = alternatesButton.offsetWidth > 0 && alternatesButton.offsetHeight > 0;
+                log('Button visibility check:', isVisible);
+                if (!isVisible) {
+                    log('⚠️ Button may not be visible, checking styles...');
+                    log('Button computed styles:', {
+                        display: getComputedStyle(alternatesButton).display,
+                        visibility: getComputedStyle(alternatesButton).visibility,
+                        opacity: getComputedStyle(alternatesButton).opacity
+                    });
+                }
+            }, 100);
+            
+            return alternatesButton;
+            
+        } catch (error) {
+            log('❌ Error placing button:', error);
+            return null;
         }
-        
-        // Strategy 3: Place after ASIN input directly
-        log('Placing button directly after ASIN input');
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'margin-top: 0.5rem;';
-        wrapper.appendChild(alternatesButton);
-        
-        asinInput.parentNode.insertBefore(wrapper, asinInput.nextSibling);
-        log('Add Alternates button added after ASIN input');
-        
-        log('=== Button Placement Complete ===');
     }
+    
+    // Enhanced manual button addition for testing with exact styling
+    window.forceAddAlternatesButton = function() {
+        console.log('=== Force Adding Alternates Button (Enhanced) ===');
+        
+        // Remove existing button if present
+        const existing = document.querySelector('#cqe-add-alternates-btn');
+        if (existing) {
+            existing.remove();
+            console.log('Removed existing button');
+        }
+        
+        // Try multiple strategies to find a good placement location
+        let targetElement = null;
+        let strategy = '';
+        
+        // Strategy 1: Find Add Item button
+        const addItemButton = document.querySelector('#add-item-btn');
+        if (addItemButton) {
+            targetElement = addItemButton;
+            strategy = 'add-item-button';
+            console.log('✅ Found Add Item button');
+        }
+        
+        // Strategy 2: Find any button with "add" in text
+        if (!targetElement) {
+            const allButtons = document.querySelectorAll('button');
+            for (const btn of allButtons) {
+                if (btn.textContent && btn.textContent.toLowerCase().includes('add')) {
+                    targetElement = btn;
+                    strategy = 'add-text-button';
+                    console.log('✅ Found button with "add" text:', btn.textContent.trim());
+                    break;
+                }
+            }
+        }
+        
+        // Strategy 3: Find any submit button
+        if (!targetElement) {
+            const submitBtn = document.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                targetElement = submitBtn;
+                strategy = 'submit-button';
+                console.log('✅ Found submit button');
+            }
+        }
+        
+        // Strategy 4: Find any button
+        if (!targetElement) {
+            const anyButton = document.querySelector('button');
+            if (anyButton) {
+                targetElement = anyButton;
+                strategy = 'any-button';
+                console.log('✅ Found any button');
+            }
+        }
+        
+        // Strategy 5: Find input field
+        if (!targetElement) {
+            const input = document.querySelector('input[type="text"]') || document.querySelector('input');
+            if (input) {
+                targetElement = input;
+                strategy = 'input-field';
+                console.log('✅ Found input field');
+            }
+        }
+        
+        // Strategy 6: Use body as last resort
+        if (!targetElement) {
+            targetElement = document.body;
+            strategy = 'body-fallback';
+            console.log('⚠️ Using body as fallback');
+        }
+        
+        console.log('Using strategy:', strategy);
+        console.log('Target element:', targetElement);
+        
+        // Create button with enhanced styling
+        const button = document.createElement('button');
+        button.id = 'cqe-add-alternates-btn';
+        button.type = 'button';
+        button.textContent = 'Add Alternates';
+        
+        // Apply styling based on target
+        if (targetElement.tagName === 'BUTTON') {
+            // Copy classes from target button
+            button.className = targetElement.className;
+            if (button.className.includes('b-button') && !button.className.includes('b-outline')) {
+                button.className += ' b-outline';
+            } else if (!button.className.includes('b-button')) {
+                button.className = 'b-button b-outline';
+            }
+            button.style.marginLeft = '0.5rem';
+        } else {
+            // Use prominent styling for non-button targets
+            button.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 10000;
+                padding: 12px 20px;
+                background: #ff9900;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 16px;
+                font-weight: bold;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                transition: all 0.2s ease;
+            `;
+        }
+        
+        // Add hover effects
+        button.addEventListener('mouseenter', () => {
+            if (targetElement.tagName === 'BUTTON') {
+                button.style.backgroundColor = '#f0f8ff';
+            } else {
+                button.style.backgroundColor = '#e88900';
+                button.style.transform = 'scale(1.05)';
+            }
+        });
+        
+        button.addEventListener('mouseleave', () => {
+            if (targetElement.tagName === 'BUTTON') {
+                button.style.backgroundColor = '';
+            } else {
+                button.style.backgroundColor = '#ff9900';
+                button.style.transform = 'scale(1)';
+            }
+        });
+        
+        // Add click handler
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('🎯 Add Alternates button clicked!');
+            
+            // Try to get ASIN from input field
+            const asinInput = document.querySelector('#add-asin-or-isbn-form') || 
+                             document.querySelector('input[type="text"]');
+            const asin = asinInput?.value || 'B00V5D4VX8'; // fallback ASIN for testing
+            
+            const productData = {
+                id: 'test-' + Date.now(),
+                asin: asin,
+                name: `Test Product ${asin}`,
+                quantity: '1',
+                unitPrice: '10.00'
+            };
+            
+            console.log('Opening modal with product data:', productData);
+            openModal(productData);
+        });
+        
+        // Place button based on strategy
+        try {
+            if (strategy === 'body-fallback') {
+                // Fixed position for body fallback
+                document.body.appendChild(button);
+            } else if (targetElement.tagName === 'BUTTON') {
+                // Insert after target button
+                targetElement.parentNode.insertBefore(button, targetElement.nextSibling);
+            } else {
+                // Insert after target element
+                if (targetElement.nextSibling) {
+                    targetElement.parentNode.insertBefore(button, targetElement.nextSibling);
+                } else {
+                    targetElement.parentNode.appendChild(button);
+                }
+            }
+            
+            console.log('✅ Add Alternates button force-added successfully!');
+            console.log('Strategy used:', strategy);
+            console.log('Button classes:', button.className);
+            console.log('Button element:', button);
+            
+            // Highlight button temporarily
+            const originalBg = button.style.backgroundColor;
+            button.style.boxShadow = '0 0 15px #ff6b6b';
+            setTimeout(() => {
+                button.style.boxShadow = '';
+            }, 3000);
+            
+            return button;
+            
+        } catch (error) {
+            console.log('❌ Error placing button:', error);
+            
+            // Ultimate fallback - fixed position
+            button.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 10000;
+                padding: 12px 20px;
+                background: #ff6b6b;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 16px;
+                font-weight: bold;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            `;
+            
+            document.body.appendChild(button);
+            console.log('✅ Button added with ultimate fallback (fixed position)');
+            
+            return button;
+        }
+    };
     
     // Add the button near the specified input element
     function addButtonNearInput(inputElement) {
@@ -4429,8 +4578,207 @@ Return top 8 products ranked by suitability as JSON array.
         log('CQE Alternates Enhancement initialized successfully');
     }
     
-    // Start initialization
-    initialize();
+    // Enhanced initialization with proper DOM ready handling
+    function initializeWhenReady() {
+        log('Starting enhanced initialization...');
+        
+        // Check if we're on the correct page
+        if (!isCQEQuotePage()) {
+            log('Not on CQE quote page, skipping initialization');
+            return;
+        }
+        
+        // Function to check if required elements are available
+        function checkRequiredElements() {
+            const asinForm = document.querySelector('#add-asin-or-isbn-form');
+            const addItemBtn = document.querySelector('#add-item-btn');
+            const pageHeader = document.querySelector('#cqe_quote_request_a_quote_header');
+            
+            log('Element check:', {
+                asinForm: !!asinForm,
+                addItemBtn: !!addItemBtn,
+                pageHeader: !!pageHeader
+            });
+            
+            return asinForm || addItemBtn || pageHeader;
+        }
+        
+        // Function to perform initialization
+        function performInitialization() {
+            log('Performing initialization...');
+            
+            try {
+                // Add modal HTML to page
+                addModalHTML();
+                
+                // Add button near ASIN input
+                addAlternatesButton();
+                
+                // Set up event listeners
+                setupEventListeners();
+                
+                // Watch for changes to the form area
+                const observer = new MutationObserver((mutations) => {
+                    let shouldUpdate = false;
+                    
+                    mutations.forEach((mutation) => {
+                        mutation.addedNodes.forEach((node) => {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                // Check if the added node contains form elements
+                                if (node.querySelector && (
+                                    node.querySelector('#add-asin-or-isbn-form') ||
+                                    node.querySelector('#add-item-btn') ||
+                                    node.id === 'add-asin-or-isbn-form' ||
+                                    node.id === 'add-item-btn'
+                                )) {
+                                    shouldUpdate = true;
+                                }
+                                // Or if the form container was updated
+                                if (node.querySelector && node.querySelector('input, button')) {
+                                    shouldUpdate = true;
+                                }
+                            }
+                        });
+                    });
+                    
+                    if (shouldUpdate) {
+                        log('Form area updated, checking for button...');
+                        setTimeout(() => {
+                            const existingBtn = document.querySelector('#cqe-add-alternates-btn');
+                            if (!existingBtn) {
+                                log('Button missing after DOM change, re-adding...');
+                                addAlternatesButton();
+                            }
+                        }, 100);
+                    }
+                });
+                
+                // Start observing the main container
+                const mainContainer = document.querySelector('.b-container') || document.body;
+                if (mainContainer) {
+                    observer.observe(mainContainer, {
+                        childList: true,
+                        subtree: true
+                    });
+                    log('Started observing for form changes');
+                }
+                
+                log('Enhanced initialization complete');
+                
+                // Verify button was created
+                setTimeout(() => {
+                    const button = document.querySelector('#cqe-add-alternates-btn');
+                    if (button) {
+                        log('✅ Add Alternates button successfully created and visible');
+                    } else {
+                        log('⚠️ Add Alternates button not found after initialization - will retry');
+                        // Force retry
+                        setTimeout(() => {
+                            log('Forcing button creation retry...');
+                            addAlternatesButton();
+                        }, 1000);
+                    }
+                }, 500);
+                
+            } catch (error) {
+                log('Error during initialization:', error);
+                // Retry after error
+                setTimeout(() => {
+                    log('Retrying initialization after error...');
+                    addAlternatesButton();
+                }, 2000);
+            }
+        }
+        
+        // Try immediate initialization if elements are ready
+        if (checkRequiredElements()) {
+            log('Elements ready, initializing immediately');
+            performInitialization();
+            return;
+        }
+        
+        // Wait for DOM content to be loaded
+        if (document.readyState === 'loading') {
+            log('Waiting for DOM content loaded...');
+            document.addEventListener('DOMContentLoaded', () => {
+                log('DOM content loaded');
+                setTimeout(() => {
+                    if (checkRequiredElements()) {
+                        performInitialization();
+                    } else {
+                        log('Elements still not ready after DOMContentLoaded, trying with delay...');
+                        setTimeout(() => {
+                            performInitialization(); // Force it anyway
+                        }, 2000);
+                    }
+                }, 500);
+            });
+        } else {
+            // DOM is already loaded, wait a bit and try again
+            log('DOM already loaded, waiting for elements...');
+            setTimeout(() => {
+                if (checkRequiredElements()) {
+                    performInitialization();
+                } else {
+                    log('Elements not ready, trying with longer delay...');
+                    setTimeout(() => {
+                        performInitialization(); // Force it anyway
+                    }, 2000);
+                }
+            }, 1000);
+        }
+    }
+    
+    // Start enhanced initialization
+    initializeWhenReady();
+    
+    // Manual retry function for debugging
+    window.retryInitialization = function() {
+        log('Manual retry requested');
+        
+        // Remove existing button if present
+        const existing = document.querySelector('#cqe-add-alternates-btn');
+        if (existing) {
+            existing.remove();
+            log('Removed existing button');
+        }
+        
+        // Try initialization again
+        setTimeout(() => {
+            addAlternatesButton();
+        }, 100);
+    };
+    
+    // Additional fallback - retry every 2 seconds for the first 20 seconds if button is missing
+    let retryCount = 0;
+    const maxRetries = 10; // 10 retries over 20 seconds
+    
+    const retryInterval = setInterval(() => {
+        retryCount++;
+        
+        if (retryCount > maxRetries) {
+            clearInterval(retryInterval);
+            log('Stopped automatic retries after 20 seconds');
+            
+            // Final attempt with force placement
+            log('Making final attempt with force placement...');
+            window.forceAddAlternatesButton();
+            return;
+        }
+        
+        const button = document.querySelector('#cqe-add-alternates-btn');
+        if (!button && isCQEQuotePage()) {
+            log(`Automatic retry ${retryCount}/${maxRetries} - button not found, attempting to add...`);
+            const result = addAlternatesButton();
+            if (result) {
+                log('✅ Button successfully added on retry', retryCount);
+                clearInterval(retryInterval);
+            }
+        } else if (button) {
+            log('✅ Button found, stopping automatic retries');
+            clearInterval(retryInterval);
+        }
+    }, 2000); // Every 2 seconds
     
     // LLM Error Handling and Fallback System
     const LLM_FALLBACK_SYSTEM = {
