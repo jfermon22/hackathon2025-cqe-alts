@@ -11,19 +11,20 @@
 (function() {
     'use strict';
     
-    // Load modules using GM_xmlhttpRequest to bypass CORS
+    // Load modules using GM_xmlhttpRequest from GitHub
     function loadModules() {
+        const baseUrl = 'https://raw.githubusercontent.com/jfermon22/hackathon2025-cqe-alts/refs/heads/main/implementation/';
         const moduleFiles = [
-            { url: 'https://drive.google.com/uc?export=download&id=19YjvSHvE8qUXGtepa3eXyYpxhB-Zn3tz', name: 'cqe-config.js' },
-            { url: 'https://drive.google.com/uc?export=download&id=1iGQu1aAJKrfwAYT6JRriw_DheSxrO4g1', name: 'asin-validation.js' },
-            { url: 'https://drive.google.com/uc?export=download&id=1roL8pFANtWp8n2Z9ggVW4IuUfLOpvGPH', name: 'modal-system.js' },
-            { url: 'https://drive.google.com/uc?export=download&id=12Zjz9-OKV43I2d3gPndEMgiAxgMlIH71', name: 'amazon-search.js' },
-            { url: 'https://drive.google.com/uc?export=download&id=1zwgSMqJnoRVNU7JbMspLl6MLYKCDSKey', name: 'bedrock-integration.js' },
-            { url: 'https://drive.google.com/uc?export=download&id=1Z3sQNoRE13SJAfTo0pvImByAlHRieOOX', name: 'ui-components.js' },
-            { url: 'https://drive.google.com/uc?export=download&id=1azvKRtNA70cEnktte1zFTqUwAyhjR0jK', name: 'main-initialization.js' }
+            { url: baseUrl + 'cqe-config.js', name: 'cqe-config.js' },
+            { url: baseUrl + 'asin-validation.js', name: 'asin-validation.js' },
+            { url: baseUrl + 'modal-system.js', name: 'modal-system.js' },
+            { url: baseUrl + 'amazon-search.js', name: 'amazon-search.js' },
+            { url: baseUrl + 'bedrock-integration.js', name: 'bedrock-integration.js' },
+            { url: baseUrl + 'ui-components.js', name: 'ui-components.js' },
+            { url: baseUrl + 'main-initialization.js', name: 'main-initialization.js' }
         ];
         
-        console.log('[CQE Alternates] Loading modules via GM_xmlhttpRequest (bypassing CORS)...');
+        console.log('[CQE Alternates] Loading modules via GM_xmlhttpRequest from GitHub...');
         
         return new Promise((resolve) => {
             let loadedCount = 0;
@@ -60,9 +61,43 @@
                                 // Execute the module code
                                 console.log(`[CQE Alternates] 🔧 Executing ${module.name}...`);
                                 
-                                // Create a function to execute the code in the global scope
-                                const executeCode = new Function(response.responseText);
-                                executeCode();
+                                // Strip IIFE wrapper to allow global scope execution
+                                let moduleCode = response.responseText;
+                                
+                                // Remove the outer IIFE wrapper: (function() { 'use strict'; ... })();
+                                const iifePattern = /^\s*\(function\(\)\s*\{\s*['"]use strict['"];\s*([\s\S]*)\s*\}\)\(\);\s*$/;
+                                const match = moduleCode.match(iifePattern);
+                                
+                                if (match) {
+                                    moduleCode = match[1]; // Extract the inner code
+                                    console.log(`[CQE Alternates] 🔧 Stripped IIFE wrapper from ${module.name}`);
+                                } else {
+                                    console.log(`[CQE Alternates] ⚠️ No IIFE wrapper found in ${module.name}, executing as-is`);
+                                }
+                                
+                                // Execute the code in global scope using eval (safer than Function for this use case)
+                                eval(moduleCode);
+                                
+                                // Debug: Check what window objects were created
+                                console.log(`[CQE Alternates] 🔍 After executing ${module.name}, checking window objects:`);
+                                const windowObjects = {
+                                    CQE_SELECTORS: !!window.CQE_SELECTORS,
+                                    ASIN_VALIDATION: !!window.ASIN_VALIDATION,
+                                    MODAL_SYSTEM: !!window.MODAL_SYSTEM,
+                                    AMAZON_SEARCH_MODULE: !!window.AMAZON_SEARCH_MODULE,
+                                    BEDROCK_AGENT_INTEGRATION: !!window.BEDROCK_AGENT_INTEGRATION,
+                                    UI_COMPONENTS: !!window.UI_COMPONENTS,
+                                    CQE_MAIN: !!window.CQE_MAIN,
+                                    log: !!window.log
+                                };
+                                console.log(`[CQE Alternates] 📊 Window objects status:`, windowObjects);
+                                
+                                // Also check for any new window properties that might have been added
+                                const newWindowProps = Object.getOwnPropertyNames(window).filter(prop => 
+                                    prop.startsWith('CQE') || prop.startsWith('ASIN') || prop.startsWith('MODAL') || 
+                                    prop.startsWith('AMAZON') || prop.startsWith('BEDROCK') || prop.startsWith('UI')
+                                );
+                                console.log(`[CQE Alternates] 🔎 CQE-related window properties:`, newWindowProps);
                                 
                                 loadedCount++;
                                 console.log(`[CQE Alternates] ✅ Successfully loaded and executed ${module.name} (${loadedCount}/${totalModules})`);
