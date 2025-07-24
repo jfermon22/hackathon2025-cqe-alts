@@ -237,7 +237,26 @@
                 // Initialize modal functionality after opening
                 if (window.UI_COMPONENTS) {
                     setTimeout(() => {
+                        // Check functions right before modal initialization
+                        console.log('[CQE Alternates] 🔍 Function check before modal init:', {
+                            'cqeRemoveManualASIN': typeof window.cqeRemoveManualASIN,
+                            'cqeRemoveSelectedAlternate': typeof window.cqeRemoveSelectedAlternate
+                        });
+                        
+                        // Ensure functions exist before initializing
+                        if (window.ensureCQEGlobalFunctions) {
+                            window.ensureCQEGlobalFunctions();
+                        }
+                        
                         window.UI_COMPONENTS.initializeModalFunctionality();
+                        
+                        // Check functions right after modal initialization
+                        setTimeout(() => {
+                            console.log('[CQE Alternates] 🔍 Function check after modal init:', {
+                                'cqeRemoveManualASIN': typeof window.cqeRemoveManualASIN,
+                                'cqeRemoveSelectedAlternate': typeof window.cqeRemoveSelectedAlternate
+                            });
+                        }, 50);
                     }, 100);
                 }
             }
@@ -304,12 +323,9 @@
 
         // Add "Add Alternates" button near the ASIN input form
         addAlternatesButton: function() {
-            window.log('=== Add Alternates Button Placement (Enhanced) ===');
-            
             // Check if button already exists
             const existingButton = document.querySelector('#cqe-add-alternates-btn');
             if (existingButton) {
-                window.log('Add Alternates button already exists');
                 return existingButton;
             }
             
@@ -322,7 +338,6 @@
             if (addItemButton) {
                 targetElement = addItemButton;
                 placementStrategy = 'after-add-item-button';
-                window.log('Strategy 1: Found Add Item button');
             }
             
             // Strategy 2: Find any submit button
@@ -331,7 +346,6 @@
                 if (submitButtons.length > 0) {
                     targetElement = submitButtons[0];
                     placementStrategy = 'after-submit-button';
-                    window.log('Strategy 2: Found submit button');
                 }
             }
             
@@ -342,7 +356,6 @@
                     if (btn.textContent && btn.textContent.toLowerCase().includes('add')) {
                         targetElement = btn;
                         placementStrategy = 'after-add-button';
-                        window.log('Strategy 3: Found button with "Add" text:', btn.textContent.trim());
                         break;
                     }
                 }
@@ -356,7 +369,6 @@
                 if (asinInput) {
                     targetElement = asinInput;
                     placementStrategy = 'after-asin-input';
-                    window.log('Strategy 4: Found ASIN input field');
                 }
             }
             
@@ -367,18 +379,13 @@
                 if (anyInput) {
                     targetElement = anyInput;
                     placementStrategy = 'after-any-input';
-                    window.log('Strategy 5: Found any input field');
                 }
             }
             
             // If still no target found, give up
             if (!targetElement) {
-                window.log('❌ Could not find any suitable element for button placement');
                 return null;
             }
-            
-            window.log('✅ Target element found:', targetElement);
-            window.log('Placement strategy:', placementStrategy);
             
             // Create the Add Alternates button
             const alternatesButton = document.createElement('button');
@@ -430,12 +437,10 @@
                         targetElement.parentNode.appendChild(alternatesButton);
                 }
                 
-                window.log('✅ Add Alternates button placed successfully using strategy:', placementStrategy);
                 
                 // Verify button is visible
                 setTimeout(() => {
                     const isVisible = alternatesButton.offsetWidth > 0 && alternatesButton.offsetHeight > 0;
-                    window.log('Button visibility check:', isVisible);
                 }, 100);
                 
                 return alternatesButton;

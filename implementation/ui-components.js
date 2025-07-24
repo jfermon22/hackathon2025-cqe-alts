@@ -15,12 +15,13 @@
         // Global state for modal functionality
         manualAsins: new Set(),
         selectedAlternates: new Set(),
+        originalAsin: null, // Store the original requested ASIN
         
         // Initialize modal functionality
         initializeModalFunctionality: function() {
-            // Reset global state
-            this.manualAsins = new Set();
-            this.selectedAlternates = new Set();
+            // Don't reset global state if it already exists (preserve data during re-initialization)
+            if (!this.manualAsins) this.manualAsins = new Set();
+            if (!this.selectedAlternates) this.selectedAlternates = new Set();
             
             // Constants
             const ASIN_REGEX = /^[A-Z0-9]{10}$/i;
@@ -162,6 +163,12 @@
                     return false;
                 }
                 
+                // Check if this is the original requested ASIN
+                if (this.originalAsin && value === this.originalAsin) {
+                    showError('Cannot add the original requested ASIN as an alternate. Please choose a different product.');
+                    return false;
+                }
+                
                 // Add to manual ASINs set
                 this.manualAsins.add(value);
                 
@@ -191,7 +198,7 @@
                             <span class="asin-text">${value}</span>
                             <span class="cqe-asin-type-label manual-label">Customer Supplied</span>
                         </div>
-                        <button class="remove-btn" onclick="window.cqeRemoveManualASIN('${value}')" title="Remove">×</button>
+                        <button class="remove-btn" onclick="(function(asin) { console.log('[CQE Alternates] 🗑️ Removing manual ASIN:', asin); try { var li = event.target.closest('li'); if (li) { li.remove(); } if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins) { window.UI_COMPONENTS.manualAsins.delete(asin); var counter = document.getElementById('cqe-asin-counter'); if (counter) { var totalCount = (window.UI_COMPONENTS.manualAsins ? window.UI_COMPONENTS.manualAsins.size : 0) + (window.UI_COMPONENTS.selectedAlternates ? window.UI_COMPONENTS.selectedAlternates.size : 0); counter.textContent = '(' + totalCount + '/3)'; } } console.log('[CQE Alternates] ✅ Manual ASIN removed successfully'); } catch(e) { console.error('[CQE Alternates] ❌ Removal error:', e); } })('${value}')" title="Remove">×</button>
                     `;
                     asinList.appendChild(li);
                 });
@@ -207,14 +214,14 @@
                             <span class="cqe-asin-type-label alternate-label">Amazon Suggested</span>
                             ${product && product.name ? `<div style="font-size: 0.8rem; color: #666; margin-top: 2px;">${product.name}</div>` : ''}
                         </div>
-                        <button class="remove-btn" onclick="window.cqeRemoveSelectedAlternate('${asin}')" title="Remove">×</button>
+                        <button class="remove-btn" onclick="(function(asin) { console.log('[CQE Alternates] 🗑️ Removing selected alternate:', asin); try { var li = event.target.closest('li'); if (li) { li.remove(); } if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates) { window.UI_COMPONENTS.selectedAlternates.delete(asin); var counter = document.getElementById('cqe-asin-counter'); if (counter) { var totalCount = (window.UI_COMPONENTS.manualAsins ? window.UI_COMPONENTS.manualAsins.size : 0) + (window.UI_COMPONENTS.selectedAlternates ? window.UI_COMPONENTS.selectedAlternates.size : 0); counter.textContent = '(' + totalCount + '/3)'; } var tiles = document.querySelectorAll('.alternate-tile[data-asin=\"' + asin + '\"]'); tiles.forEach(function(tile) { tile.classList.remove('selected'); }); } console.log('[CQE Alternates] ✅ Selected alternate removed successfully'); } catch(e) { console.error('[CQE Alternates] ❌ Removal error:', e); } })('${asin}')" title="Remove">×</button>
                     `;
                     asinList.appendChild(li);
                 });
             };
 
-            // Generate and display suggested alternates
-            const suggestAlternates = () => {
+            // Generate and display suggested alternates using multi-function agent
+            const suggestAlternates = async () => {
                 const itemDescription = document.getElementById('cqe-item-description')?.value.trim() || '';
                 const mustHave = document.getElementById('cqe-must-have')?.value.trim() || '';
                 const preferred = document.getElementById('cqe-preferred')?.value.trim() || '';
@@ -231,6 +238,79 @@
                 
                 container.style.display = 'block';
                 container.innerHTML = `
+                    <div class="cqe-section-header">Generating Search Terms with AI...</div>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <p style="margin-top: 10px; color: #666;">Using AI to generate optimized search terms...</p>
+                    </div>
+                `;
+                
+                // Prepare form data for the multi-function agent
+                const formData = {
+                    originalProduct: window.currentProductData?.name || '',
+                    itemDescription: itemDescription,
+                    mustHaveAttributes: mustHave,
+                    preferredAttributes: preferred,
+                    customerUsageIntent: intent
+                };
+                
+                try {
+                    // Call the multi-function agent to generate search term
+                    if (window.generateSearchTermWithAgent) {
+                        window.log('🤖 Calling multi-function agent for search term generation');
+                        
+                        const agentResult = await window.generateSearchTermWithAgent(formData);
+                        
+                        if (agentResult.success && agentResult.searchTerm) {
+                            window.log('✅ Agent generated search term successfully:', agentResult.searchTerm);
+                            
+                            // Update loading message
+                            container.innerHTML = `
+                                <div class="cqe-section-header">Searching Amazon with AI-Generated Terms...</div>
+                                <div style="text-align: center; padding: 20px;">
+                                    <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                                    <p style="margin-top: 10px; color: #666;">Search term: "${agentResult.searchTerm}"</p>
+                                    <p style="color: #666;">Finding products on Amazon...</p>
+                                </div>
+                            `;
+                            
+                            // Use the generated search term with Amazon Search Module
+                            if (window.AMAZON_SEARCH_MODULE) {
+                                // Use the AI-generated search term instead of the original fields
+                                window.AMAZON_SEARCH_MODULE.performSearch(agentResult.searchTerm, '', '', '', formData.originalProduct)
+                                    .then(results => {
+                                        window.log('✅ Amazon search completed with AI-generated term');
+                                        displaySearchResults(results, agentResult.searchTerm);
+                                    })
+                                    .catch(error => {
+                                        window.log('❌ Amazon search failed, falling back to mock data:', error);
+                                        displaySearchFallback(error.message, agentResult.searchTerm);
+                                    });
+                            } else {
+                                // Fallback if search module not available
+                                setTimeout(() => {
+                                    displaySearchFallback('Search module not available', agentResult.searchTerm);
+                                }, 1000);
+                            }
+                        } else {
+                            // Agent failed, fall back to original search method
+                            window.log('❌ Agent search term generation failed, falling back to original method');
+                            fallbackToOriginalSearch(formData, container);
+                        }
+                    } else {
+                        // Agent function not available, fall back to original search method
+                        window.log('❌ Multi-function agent not available, falling back to original method');
+                        fallbackToOriginalSearch(formData, container);
+                    }
+                } catch (error) {
+                    window.log('❌ Error in agent search term generation:', error);
+                    fallbackToOriginalSearch(formData, container);
+                }
+            };
+            
+            // Fallback to original search method
+            const fallbackToOriginalSearch = (formData, container) => {
+                container.innerHTML = `
                     <div class="cqe-section-header">Searching for Alternates...</div>
                     <div style="text-align: center; padding: 20px;">
                         <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
@@ -238,22 +318,23 @@
                     </div>
                 `;
                 
-                // Get current product name for context
-                const productName = window.currentProductData?.name || '';
-                
-                // Perform search using the Amazon Search Module
                 if (window.AMAZON_SEARCH_MODULE) {
-                    window.AMAZON_SEARCH_MODULE.performSearch(itemDescription, mustHave, preferred, intent, productName)
+                    window.AMAZON_SEARCH_MODULE.performSearch(
+                        formData.itemDescription, 
+                        formData.mustHaveAttributes, 
+                        formData.preferredAttributes, 
+                        formData.customerUsageIntent, 
+                        formData.originalProduct
+                    )
                         .then(results => {
-                            window.log('✅ Search completed, displaying results');
+                            window.log('✅ Fallback search completed, displaying results');
                             displaySearchResults(results);
                         })
                         .catch(error => {
-                            window.log('❌ Search failed, falling back to mock data:', error);
+                            window.log('❌ Fallback search failed, using mock data:', error);
                             displaySearchFallback(error.message);
                         });
                 } else {
-                    // Fallback if search module not available
                     setTimeout(() => {
                         displaySearchFallback('Search module not available');
                     }, 2000);
@@ -353,6 +434,12 @@
                     return;
                 }
                 
+                // Check if this is the original requested ASIN
+                if (this.originalAsin && asin === this.originalAsin) {
+                    showError('Cannot select the original requested ASIN as an alternate. Please choose a different product.');
+                    return;
+                }
+                
                 if (tile.classList.contains('selected')) {
                     // Deselecting - always allowed
                     tile.classList.remove('selected');
@@ -372,8 +459,8 @@
                 updateCounterAndUI();
             };
 
-            // Submit the form
-            const submitForm = () => {
+            // Submit the form with multi-function agent integration
+            const submitForm = async () => {
                 // Prepare submission payload with clear separation
                 const payload = {
                     manualAsins: Array.from(this.manualAsins),
@@ -398,14 +485,88 @@
                 
                 window.log('Submitting payload to downstream services:', payload);
                 
-                // Create detailed summary for user
-                let summary = 'Form submitted successfully!\n\n';
-                summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
-                summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
-                summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
-                summary += 'Next steps:\n- Bedrock agent will process your requirements\n- Product search will find additional matches\n- Suppliers will receive summarized context';
+                // Show loading state for supplier summary generation
+                const submitBtn = document.getElementById('cqe-submit-btn');
+                const originalText = submitBtn ? submitBtn.textContent : 'Submit';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Generating Summary...';
+                }
                 
-                alert(summary);
+                try {
+                    // Generate supplier summary using multi-function agent
+                    if (window.generateSupplierSummaryWithAgent) {
+                        window.log('🤖 Calling multi-function agent for supplier summary generation');
+                        
+                        const formData = {
+                            originalProduct: window.currentProductData?.name || '',
+                            customerUsageIntent: payload.intent,
+                            itemDescription: payload.itemDescription,
+                            mustHaveAttributes: payload.mustHave,
+                            preferredAttributes: payload.preferred
+                        };
+                        
+                        const summaryResult = await window.generateSupplierSummaryWithAgent(formData);
+                        
+                        if (summaryResult.success && summaryResult.summary) {
+                            window.log('✅ Supplier summary generated successfully');
+                            
+                            // Create detailed summary for user including AI-generated summary
+                            let summary = 'Form submitted successfully!\n\n';
+                            summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
+                            summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
+                            summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
+                            summary += 'AI-Generated Supplier Summary:\n';
+                            summary += '─'.repeat(50) + '\n';
+                            summary += summaryResult.summary + '\n';
+                            summary += '─'.repeat(50) + '\n\n';
+                            summary += 'Next steps:\n- Summary has been generated for suppliers\n- Product search will find additional matches\n- Suppliers will receive the AI-optimized context';
+                            
+                            alert(summary);
+                        } else {
+                            window.log('❌ Supplier summary generation failed, proceeding without AI summary');
+                            
+                            // Fallback to original submission without AI summary
+                            let summary = 'Form submitted successfully!\n\n';
+                            summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
+                            summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
+                            summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
+                            summary += '⚠️ AI summary generation temporarily unavailable\n';
+                            summary += 'Next steps:\n- Form data will be processed manually\n- Product search will find additional matches\n- Suppliers will receive basic context';
+                            
+                            alert(summary);
+                        }
+                    } else {
+                        window.log('❌ Multi-function agent not available for supplier summary');
+                        
+                        // Fallback to original submission
+                        let summary = 'Form submitted successfully!\n\n';
+                        summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
+                        summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
+                        summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
+                        summary += 'Next steps:\n- Form data will be processed\n- Product search will find additional matches\n- Suppliers will receive context';
+                        
+                        alert(summary);
+                    }
+                } catch (error) {
+                    window.log('❌ Error in supplier summary generation:', error);
+                    
+                    // Show error but still allow submission
+                    let summary = 'Form submitted with warnings!\n\n';
+                    summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
+                    summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
+                    summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
+                    summary += `⚠️ AI processing error: ${error.message}\n`;
+                    summary += 'Next steps:\n- Form data will be processed manually\n- Product search will find additional matches\n- Suppliers will receive basic context';
+                    
+                    alert(summary);
+                } finally {
+                    // Restore button state
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalText;
+                    }
+                }
                 
                 // Close modal after successful submission
                 if (window.MODAL_SYSTEM) {
@@ -534,21 +695,81 @@
 // Global functions for remove buttons (called from HTML onclick)
 // These MUST be outside the IIFE to be accessible globally
 window.cqeRemoveSelectedAlternate = function(asin) {
+    console.log('[CQE Alternates] 🗑️ cqeRemoveSelectedAlternate called with ASIN:', asin);
+    console.log('[CQE Alternates] 🔍 Function context check:', {
+        'window.UI_COMPONENTS exists': !!window.UI_COMPONENTS,
+        'selectedAlternates exists': !!(window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates),
+        'ASIN in set': !!(window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin))
+    });
+    
     window.log('Removing selected alternate:', asin);
     if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin)) {
         window.UI_COMPONENTS.selectedAlternates.delete(asin);
         // Re-initialize to update display
         window.UI_COMPONENTS.initializeModalFunctionality();
         window.log('Selected alternate removed:', asin);
+        console.log('[CQE Alternates] ✅ Selected alternate successfully removed');
+    } else {
+        console.error('[CQE Alternates] ❌ Could not remove selected alternate - missing dependencies');
     }
 };
 
 window.cqeRemoveManualASIN = function(asin) {
+    console.log('[CQE Alternates] 🗑️ cqeRemoveManualASIN called with ASIN:', asin);
+    console.log('[CQE Alternates] 🔍 Function context check:', {
+        'window.UI_COMPONENTS exists': !!window.UI_COMPONENTS,
+        'manualAsins exists': !!(window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins),
+        'ASIN in set': !!(window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin))
+    });
+    
     window.log('Removing manual ASIN:', asin);
     if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin)) {
         window.UI_COMPONENTS.manualAsins.delete(asin);
         // Re-initialize to update display
         window.UI_COMPONENTS.initializeModalFunctionality();
         window.log('Manual ASIN removed:', asin);
+        console.log('[CQE Alternates] ✅ Manual ASIN successfully removed');
+    } else {
+        console.error('[CQE Alternates] ❌ Could not remove manual ASIN - missing dependencies');
     }
+};
+
+// Function to ensure global functions are always available
+window.ensureCQEGlobalFunctions = function() {
+    console.log('[CQE Alternates] 🔧 Ensuring global functions are available...');
+    
+    const functionsStatus = {
+        cqeRemoveManualASIN: typeof window.cqeRemoveManualASIN,
+        cqeRemoveSelectedAlternate: typeof window.cqeRemoveSelectedAlternate
+    };
+    
+    console.log('[CQE Alternates] 📊 Global functions status:', functionsStatus);
+    
+    // If functions are missing, recreate them
+    if (typeof window.cqeRemoveManualASIN !== 'function') {
+        console.log('[CQE Alternates] 🔧 Recreating cqeRemoveManualASIN...');
+        window.cqeRemoveManualASIN = function(asin) {
+            console.log('[CQE Alternates] 🗑️ [RECREATED] cqeRemoveManualASIN called with ASIN:', asin);
+            if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin)) {
+                window.UI_COMPONENTS.manualAsins.delete(asin);
+                window.UI_COMPONENTS.initializeModalFunctionality();
+                console.log('[CQE Alternates] ✅ [RECREATED] Manual ASIN successfully removed');
+            }
+        };
+    }
+    
+    if (typeof window.cqeRemoveSelectedAlternate !== 'function') {
+        console.log('[CQE Alternates] 🔧 Recreating cqeRemoveSelectedAlternate...');
+        window.cqeRemoveSelectedAlternate = function(asin) {
+            console.log('[CQE Alternates] 🗑️ [RECREATED] cqeRemoveSelectedAlternate called with ASIN:', asin);
+            if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin)) {
+                window.UI_COMPONENTS.selectedAlternates.delete(asin);
+                window.UI_COMPONENTS.initializeModalFunctionality();
+                console.log('[CQE Alternates] ✅ [RECREATED] Selected alternate successfully removed');
+            }
+        };
+    }
+    
+    console.log('[CQE Alternates] ✅ Global functions ensured');
+    return functionsStatus;
 };

@@ -491,6 +491,12 @@
             // Store product data globally for search module access
             window.currentProductData = productData;
             
+            // Set the original ASIN in UI_COMPONENTS to prevent adding it as alternate
+            if (window.UI_COMPONENTS && productData && productData.asin) {
+                window.UI_COMPONENTS.originalAsin = productData.asin.toUpperCase();
+                window.log('Original ASIN set for validation:', window.UI_COMPONENTS.originalAsin);
+            }
+            
             // Update product context
             const contextDiv = document.querySelector('#cqe-product-context');
             if (contextDiv && productData) {

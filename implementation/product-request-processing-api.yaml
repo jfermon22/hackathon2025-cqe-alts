@@ -1,0 +1,295 @@
+openapi: 3.0.3
+info:
+  title: Product Request Processing Agent API
+  description: |
+    API for processing product requests with dual functionality:
+    1. Generate Amazon search terms for product alternatives
+    2. Create supplier quote request summaries
+    
+    The agent determines the appropriate function based on the input parameters.
+  version: 1.0.0
+  contact:
+    name: Product Request Processing Team
+    email: support@example.com
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://staging-api.example.com/v1
+    description: Staging server
+
+paths:
+  /process-request:
+    post:
+      summary: Process product request
+      description: |
+        Processes a product request and returns either Amazon search terms or supplier summary
+        based on the function parameter.
+      operationId: processProductRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequestInput'
+            examples:
+              search_term_generation:
+                summary: Search Term Generation Request
+                value:
+                  function: "search_term_generation"
+                  original_product: "Sony WH-1000XM4 Wireless Headphones"
+                  description: "Looking for high-quality wireless headphones for travel"
+                  must_have_attributes: ["wireless", "noise canceling", "over-ear"]
+                  nice_to_have_attributes: ["long battery life", "foldable"]
+              supplier_summary:
+                summary: Supplier Summary Request
+                value:
+                  function: "supplier_summary"
+                  customer_usage_intent: "Need headphones for daily commute on noisy subway, 2-hour daily use"
+                  original_product: "Sony WH-1000XM4 Wireless Headphones"
+                  item_description: "Over-ear wireless headphones with active noise cancellation"
+                  description: "Looking for high-quality wireless headphones for travel"
+                  must_have_attributes: ["wireless connectivity", "active noise cancellation", "over-ear design", "minimum 8-hour battery"]
+                  nice_to_have_attributes: ["quick charge capability", "foldable design", "carrying case included"]
+      responses:
+        '200':
+          description: Successful processing
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SearchTermResponse'
+                  - $ref: '#/components/schemas/SupplierSummaryResponse'
+              examples:
+                search_term_response:
+                  summary: Search Term Generation Response
+                  value:
+                    function_executed: "search_term_generation"
+                    search_term: "wireless noise canceling over ear headphones travel"
+                    confidence_level: 8
+                    reasoning: "Focused on core must-have attributes (wireless, noise canceling, over-ear) with travel context from description. Omitted brand to find alternatives."
+                    alternative_search_terms:
+                      - "bluetooth noise cancelling headphones foldable"
+                      - "wireless over ear headphones long battery"
+                supplier_summary_response:
+                  summary: Supplier Summary Response
+                  value:
+                    function_executed: "supplier_summary"
+                    summary: "Customer seeks over-ear wireless headphones for daily 2-hour subway commutes in noisy environment. Critical requirements include active noise cancellation, wireless connectivity, and minimum 8-hour battery life."
+                    priority_requirements:
+                      - "Active noise cancellation for subway noise environment"
+                      - "Minimum 8-hour battery life for extended daily use"
+                      - "Wireless connectivity (Bluetooth)"
+                      - "Over-ear design for comfort during 2-hour sessions"
+                      - "Durability for daily commuter use"
+                    usage_context: "Daily 2-hour subway commute requiring noise isolation in high-noise transportation environment with consistent daily use pattern."
+                    flexibility_indicators:
+                      - "Open to alternatives to Sony WH-1000XM4 reference"
+                      - "Quick charge and foldable design are preferred but not required"
+                      - "Carrying case inclusion negotiable"
+        '400':
+          description: Bad request - Invalid input parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_function:
+                  summary: Invalid Function Parameter
+                  value:
+                    error: "Invalid function parameter"
+                    message: "Function must be either 'search_term_generation' or 'supplier_summary'"
+                    valid_functions: ["search_term_generation", "supplier_summary"]
+                missing_required_field:
+                  summary: Missing Required Field
+                  value:
+                    error: "Missing required parameter"
+                    message: "customer_usage_intent is required for supplier_summary function"
+                    required_fields: ["customer_usage_intent", "item_description"]
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Health check
+      description: Check if the service is running
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+
+components:
+  schemas:
+    ProductRequestInput:
+      type: object
+      required:
+        - function
+        - original_product
+        - description
+        - must_have_attributes
+      properties:
+        function:
+          type: string
+          enum: ["search_term_generation", "supplier_summary"]
+          description: Determines which processing function to execute
+        original_product:
+          type: string
+          description: Description of the originally requested product
+          maxLength: 500
+        description:
+          type: string
+          description: What the user is looking for
+          maxLength: 1000
+        must_have_attributes:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+          description: Critical attributes that must be present
+          minItems: 1
+          maxItems: 20
+        nice_to_have_attributes:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+          description: Preferred attributes (optional)
+          maxItems: 20
+        customer_usage_intent:
+          type: string
+          description: How the customer plans to use the product (required for supplier_summary)
+          maxLength: 500
+        item_description:
+          type: string
+          description: Description of the item being sought (required for supplier_summary)
+          maxLength: 500
+
+    SearchTermResponse:
+      type: object
+      required:
+        - function_executed
+        - search_term
+        - confidence_level
+        - reasoning
+      properties:
+        function_executed:
+          type: string
+          enum: ["search_term_generation"]
+        search_term:
+          type: string
+          description: Generated Amazon search term (max 10 words)
+          maxLength: 100
+        confidence_level:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Confidence score for search term quality
+        reasoning:
+          type: string
+          description: Explanation of why this search term was chosen
+          maxLength: 500
+        alternative_search_terms:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+          description: Up to 2 backup search terms
+          maxItems: 2
+
+    SupplierSummaryResponse:
+      type: object
+      required:
+        - function_executed
+        - summary
+        - priority_requirements
+        - usage_context
+      properties:
+        function_executed:
+          type: string
+          enum: ["supplier_summary"]
+        summary:
+          type: string
+          description: Concise summary for supplier dashboard (max 150 words)
+          maxLength: 1000
+        priority_requirements:
+          type: array
+          items:
+            type: string
+            maxLength: 200
+          description: Top 5 most critical requirements
+          minItems: 1
+          maxItems: 5
+        usage_context:
+          type: string
+          description: Brief explanation of product usage (max 50 words)
+          maxLength: 300
+        flexibility_indicators:
+          type: array
+          items:
+            type: string
+            maxLength: 200
+          description: Areas where customer might accept alternatives
+          maxItems: 10
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type identifier
+        message:
+          type: string
+          description: Human-readable error message
+        valid_functions:
+          type: array
+          items:
+            type: string
+          description: List of valid function values (for function validation errors)
+        required_fields:
+          type: array
+          items:
+            type: string
+          description: List of required fields (for missing parameter errors)
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+tags:
+  - name: Processing
+    description: Product request processing operations
+  - name: Health
+    description: Service health and monitoring

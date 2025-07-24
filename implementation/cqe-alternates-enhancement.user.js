@@ -19,6 +19,7 @@
             { url: baseUrl + 'asin-validation.js', name: 'asin-validation.js' },
             { url: baseUrl + 'modal-system.js', name: 'modal-system.js' },
             { url: baseUrl + 'amazon-search.js', name: 'amazon-search.js' },
+            { url: baseUrl + 'aws-credentials-helper.js', name: 'aws-credentials-helper.js' },
             { url: baseUrl + 'bedrock-integration.js', name: 'bedrock-integration.js' },
             { url: baseUrl + 'ui-components.js', name: 'ui-components.js' },
             { url: baseUrl + 'main-initialization.js', name: 'main-initialization.js' }
@@ -138,6 +139,128 @@
                                 
                                 loadedCount++;
                                 
+                                // Special check for AWS credentials helper
+                                if (module.name === 'aws-credentials-helper.js') {
+                                    console.log('[CQE Alternates] 🔍 Checking AWS_CREDENTIALS_HELPER after execution...');
+                                    console.log('[CQE Alternates] window.AWS_CREDENTIALS_HELPER:', typeof window.AWS_CREDENTIALS_HELPER);
+                                    
+                                    if (window.AWS_CREDENTIALS_HELPER) {
+                                        console.log('[CQE Alternates] ✅ AWS_CREDENTIALS_HELPER loaded successfully');
+                                        console.log('[CQE Alternates] Available methods:', Object.keys(window.AWS_CREDENTIALS_HELPER));
+                                        
+                                        // Inject AWS_CREDENTIALS_HELPER into the main page context
+                                        const script = document.createElement('script');
+                                        script.textContent = `
+                                            window.AWS_CREDENTIALS_HELPER = {
+                                                temporaryCredentials: null,
+                                                
+                                                setTemporaryCredentials: function(accessKeyId, secretAccessKey, sessionToken = null) {
+                                                    console.log('🔐 Setting temporary AWS credentials for browser testing');
+                                                    
+                                                    this.temporaryCredentials = {
+                                                        accessKeyId: accessKeyId,
+                                                        secretAccessKey: secretAccessKey,
+                                                        sessionToken: sessionToken
+                                                    };
+                                                    
+                                                    console.log('✅ Temporary credentials set (expires when page reloads)');
+                                                    console.warn('⚠️ SECURITY WARNING: These credentials are stored in memory only and will be lost when the page reloads. Do not use production credentials in browser environment.');
+                                                    
+                                                    return true;
+                                                },
+                                                
+                                                getCredentials: function() {
+                                                    if (this.temporaryCredentials) {
+                                                        console.log('🔐 Returning stored temporary credentials');
+                                                        return {
+                                                            accessKeyId: this.temporaryCredentials.accessKeyId,
+                                                            secretAccessKey: this.temporaryCredentials.secretAccessKey,
+                                                            sessionToken: this.temporaryCredentials.sessionToken
+                                                        };
+                                                    }
+                                                    
+                                                    console.log('🔐 No temporary credentials stored');
+                                                    return null;
+                                                },
+                                                
+                                                clearCredentials: function() {
+                                                    console.log('🔐 Clearing temporary credentials');
+                                                    this.temporaryCredentials = null;
+                                                    console.log('✅ Temporary credentials cleared');
+                                                },
+                                                
+                                                hasCredentials: function() {
+                                                    return !!this.temporaryCredentials;
+                                                },
+                                                
+                                                setupCredentialsInteractively: function() {
+                                                    console.log('🔐 Interactive credential setup');
+                                                    
+                                                    const accessKeyId = prompt('Enter AWS Access Key ID (for testing only):');
+                                                    if (!accessKeyId) {
+                                                        console.log('❌ Credential setup cancelled');
+                                                        return false;
+                                                    }
+                                                    
+                                                    const secretAccessKey = prompt('Enter AWS Secret Access Key (for testing only):');
+                                                    if (!secretAccessKey) {
+                                                        console.log('❌ Credential setup cancelled');
+                                                        return false;
+                                                    }
+                                                    
+                                                    const sessionToken = prompt('Enter AWS Session Token (optional, leave blank if not using):');
+                                                    
+                                                    return this.setTemporaryCredentials(accessKeyId, secretAccessKey, sessionToken || null);
+                                                },
+                                                
+                                                createCredentialsProvider: function() {
+                                                    if (!this.hasCredentials()) {
+                                                        console.log('🔐 No credentials available for provider');
+                                                        return null;
+                                                    }
+                                                    
+                                                    const creds = this.getCredentials();
+                                                    
+                                                    return {
+                                                        accessKeyId: creds.accessKeyId,
+                                                        secretAccessKey: creds.secretAccessKey,
+                                                        sessionToken: creds.sessionToken
+                                                    };
+                                                },
+                                                
+                                                showStatus: function() {
+                                                    console.log('🔐 AWS Credentials Status:');
+                                                    console.log('   Has Credentials: ' + this.hasCredentials());
+                                                    
+                                                    if (this.hasCredentials()) {
+                                                        const creds = this.getCredentials();
+                                                        console.log('   Access Key ID: ' + (creds.accessKeyId ? creds.accessKeyId.substring(0, 8) + '...' : 'Not set'));
+                                                        console.log('   Secret Key: ' + (creds.secretAccessKey ? '***' + creds.secretAccessKey.substring(creds.secretAccessKey.length - 4) : 'Not set'));
+                                                        console.log('   Session Token: ' + (creds.sessionToken ? 'Present' : 'Not set'));
+                                                    }
+                                                    
+                                                    console.log('');
+                                                    console.log('🔧 Available Methods:');
+                                                    console.log('   AWS_CREDENTIALS_HELPER.setupCredentialsInteractively() - Interactive setup');
+                                                    console.log('   AWS_CREDENTIALS_HELPER.setTemporaryCredentials(keyId, secret, token) - Manual setup');
+                                                    console.log('   AWS_CREDENTIALS_HELPER.clearCredentials() - Clear credentials');
+                                                    console.log('   AWS_CREDENTIALS_HELPER.showStatus() - Show this status');
+                                                }
+                                            };
+                                            
+                                            console.log('🔐 AWS_CREDENTIALS_HELPER injected into main page context');
+                                            console.log('💡 Use AWS_CREDENTIALS_HELPER.showStatus() to see available options');
+                                            console.log('💡 Use AWS_CREDENTIALS_HELPER.setupCredentialsInteractively() for quick setup');
+                                        `;
+                                        document.head.appendChild(script);
+                                        document.head.removeChild(script);
+                                        
+                                        console.log('[CQE Alternates] 🌐 AWS_CREDENTIALS_HELPER injected into main page context');
+                                    } else {
+                                        console.error('[CQE Alternates] ❌ AWS_CREDENTIALS_HELPER not found after execution');
+                                    }
+                                }
+                                
                             } catch (error) {
                                 console.error(`[CQE Alternates] ❌ Error executing ${module.name}:`, error);
                                 console.error(`[CQE Alternates] 📄 Code preview:`, response.responseText.substring(0, 200) + '...');
@@ -190,6 +313,7 @@
                     ASIN_VALIDATION: !!window.ASIN_VALIDATION,
                     MODAL_SYSTEM: !!window.MODAL_SYSTEM,
                     AMAZON_SEARCH_MODULE: !!window.AMAZON_SEARCH_MODULE,
+                    AWS_CREDENTIALS_HELPER: !!window.AWS_CREDENTIALS_HELPER,
                     BEDROCK_AGENT_INTEGRATION: !!window.BEDROCK_AGENT_INTEGRATION,
                     UI_COMPONENTS: !!window.UI_COMPONENTS,
                     CQE_MAIN: !!window.CQE_MAIN
