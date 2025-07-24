@@ -5,6 +5,7 @@
 // @description  AWS Bedrock Agent integration for CQE Alternates Enhancement (Browser-Compatible SDK v3)
 // @author       Amazon
 // @grant        none
+// @require      https://unpkg.com/@aws-sdk/client-bedrock-agent-runtime@3.478.0/dist-browser/index.js
 // ==/UserScript==
 
 (function() {
@@ -29,7 +30,7 @@
         client: null,
         currentSessionId: null,
         
-        // Initialize AWS SDK v3 using browser-compatible approach
+        // Initialize AWS SDK v3 using @require pre-loaded module
         initializeSDK: async function() {
             console.log('🔍 DEBUG: initializeSDK v3 called');
             
@@ -39,46 +40,36 @@
             }
             
             try {
-                console.log('🔍 DEBUG: Loading AWS SDK v3 modules...');
+                console.log('🔍 DEBUG: Using @require pre-loaded AWS SDK v3...');
                 window.log('Loading AWS SDK v3...');
                 
-                // Try multiple CDN sources for AWS SDK v3
-                const cdnSources = [
-                    'https://cdn.skypack.dev/@aws-sdk/client-bedrock-agent-runtime@3',
-                    'https://unpkg.com/@aws-sdk/client-bedrock-agent-runtime@latest/dist-es/index.js',
-                    'https://esm.sh/@aws-sdk/client-bedrock-agent-runtime@3'
-                ];
-                
-                let sdkModule = null;
-                let lastError = null;
-                
-                for (const cdnUrl of cdnSources) {
-                    try {
-                        console.log(`🔍 DEBUG: Trying CDN: ${cdnUrl}`);
-                        sdkModule = await import(cdnUrl);
-                        console.log('🔍 DEBUG: Successfully loaded SDK from:', cdnUrl);
-                        break;
-                    } catch (error) {
-                        console.log(`🔍 DEBUG: Failed to load from ${cdnUrl}:`, error);
-                        lastError = error;
-                        continue;
-                    }
+                // Check if the SDK was loaded via @require
+                if (typeof window.AWS !== 'undefined' && window.AWS.BedrockAgentRuntime) {
+                    // AWS SDK v3 loaded via @require (UMD format)
+                    console.log('🔍 DEBUG: Found AWS SDK v3 in window.AWS');
+                    this.BedrockAgentRuntimeClient = window.AWS.BedrockAgentRuntime.BedrockAgentRuntimeClient;
+                    this.InvokeAgentCommand = window.AWS.BedrockAgentRuntime.InvokeAgentCommand;
+                } else if (typeof BedrockAgentRuntimeClient !== 'undefined') {
+                    // AWS SDK v3 loaded via @require (global variables)
+                    console.log('🔍 DEBUG: Found AWS SDK v3 as global variables');
+                    this.BedrockAgentRuntimeClient = BedrockAgentRuntimeClient;
+                    this.InvokeAgentCommand = InvokeAgentCommand;
+                } else {
+                    // Fallback to dynamic import if @require didn't work
+                    console.log('🔍 DEBUG: @require failed, falling back to dynamic import...');
+                    const sdkModule = await import('https://unpkg.com/@aws-sdk/client-bedrock-agent-runtime@3.478.0/dist-es/index.js');
+                    this.BedrockAgentRuntimeClient = sdkModule.BedrockAgentRuntimeClient;
+                    this.InvokeAgentCommand = sdkModule.InvokeAgentCommand;
                 }
-                
-                if (!sdkModule) {
-                    throw new Error(`Failed to load AWS SDK v3 from any CDN. Last error: ${lastError?.message}`);
-                }
-                
-                // Extract the required classes
-                this.BedrockAgentRuntimeClient = sdkModule.BedrockAgentRuntimeClient;
-                this.InvokeAgentCommand = sdkModule.InvokeAgentCommand;
                 
                 if (!this.BedrockAgentRuntimeClient || !this.InvokeAgentCommand) {
-                    throw new Error('Required AWS SDK v3 classes not found in module');
+                    throw new Error('Required AWS SDK v3 classes not found');
                 }
                 
                 this.sdkLoaded = true;
                 console.log('🔍 DEBUG: AWS SDK v3 loaded and configured successfully');
+                console.log('🔍 DEBUG: BedrockAgentRuntimeClient:', typeof this.BedrockAgentRuntimeClient);
+                console.log('🔍 DEBUG: InvokeAgentCommand:', typeof this.InvokeAgentCommand);
                 window.log('AWS SDK v3 loaded successfully');
                 return true;
                 
@@ -121,7 +112,17 @@
                 });
                 
                 // Create Bedrock Agent Runtime client with browser-compatible approach
-                this.client = new this.BedrockAgentRuntimeClient(clientConfig);
+                // Use a wrapper to handle constructor inheritance issues
+                try {
+                    this.client = new this.BedrockAgentRuntimeClient(clientConfig);
+                } catch (constructorError) {
+                    console.log('🔍 DEBUG: Direct constructor failed, trying wrapper approach:', constructorError.message);
+                    
+                    // Try creating with a wrapper function to handle inheritance issues
+                    const ClientClass = this.BedrockAgentRuntimeClient;
+                    this.client = Object.create(ClientClass.prototype);
+                    ClientClass.call(this.client, clientConfig);
+                }
                 
                 console.log('🔍 DEBUG: BedrockAgentRuntimeClient created successfully');
                 window.log('Bedrock Agent Runtime client v3 initialized');
