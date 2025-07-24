@@ -2,16 +2,15 @@
 // @name         CQE Bedrock Integration Module
 // @namespace    http://amazon.com/cqe
 // @version      3.0
-// @description  AWS Bedrock Agent integration for CQE Alternates Enhancement (Using Custom Bundle)
+// @description  AWS Bedrock Agent integration for CQE Alternates Enhancement (Using Wrapper Functions)
 // @author       Amazon
 // @grant        none
-// @require      https://raw.githubusercontent.com/jfermon22/hackathon2025-cqe-alts/refs/heads/main/bedrock-userscript-bundle/dist/bedrock-agent-runtime.min.js
 // ==/UserScript==
 
 (function() {
     'use strict';
     
-    // AWS Bedrock Agent Runtime Integration System (Using Custom Bundle)
+    // AWS Bedrock Agent Runtime Integration System (Using Wrapper Functions)
     window.BEDROCK_AGENT_INTEGRATION = {
         // Configuration - Multi-Function Agent
         CONFIG: {
@@ -28,9 +27,9 @@
         client: null,
         currentSessionId: null,
         
-        // Initialize using the custom bundle
+        // Initialize using the wrapper functions with retry mechanism
         initializeBundle: function() {
-            console.log('🔍 DEBUG: initializeBundle called');
+            console.log('🔍 DEBUG: initializeBundle called (using wrapper functions with retry)');
             
             if (this.bundleLoaded && this.client) {
                 console.log('🔍 DEBUG: Bundle already loaded and client created');
@@ -38,29 +37,76 @@
             }
             
             try {
-                // Check if BedrockAgentRuntime bundle is available
-                if (typeof BedrockAgentRuntime === 'undefined') {
-                    console.log('🔍 DEBUG: BedrockAgentRuntime bundle not found');
-                    window.log('BedrockAgentRuntime bundle not available');
+                // Check if wrapper functions are available
+                console.log('🔍 DEBUG: Checking for wrapper functions...');
+                console.log('🔍 DEBUG: typeof window.cqeBedrockCreateClient:', typeof window.cqeBedrockCreateClient);
+                console.log('🔍 DEBUG: typeof window.cqeBedrockGenerateSessionId:', typeof window.cqeBedrockGenerateSessionId);
+                console.log('🔍 DEBUG: typeof window.cqeBedrockCreateCredentials:', typeof window.cqeBedrockCreateCredentials);
+                
+                if (typeof window.cqeBedrockCreateClient === 'function' &&
+                    typeof window.cqeBedrockGenerateSessionId === 'function' &&
+                    typeof window.cqeBedrockCreateCredentials === 'function') {
+                    
+                    console.log('🔍 DEBUG: ✅ All wrapper functions are available');
+                    this.bundleLoaded = true;
+                    window.log('Bedrock Agent Runtime wrapper functions loaded successfully');
+                    return true;
+                } else {
+                    console.log('🔍 DEBUG: ❌ Wrapper functions not available, checking alternatives...');
+                    console.log('🔍 DEBUG: Available window functions:', Object.keys(window).filter(k => k.includes('cqeBedrock')));
+                    
+                    // Try to create wrapper functions directly if BedrockAgentRuntime is available
+                    if (typeof BedrockAgentRuntime !== 'undefined' && BedrockAgentRuntime !== null) {
+                        console.log('🔍 DEBUG: 🔧 BedrockAgentRuntime found directly, creating wrapper functions...');
+                        
+                        try {
+                            // Create wrapper functions directly in this context
+                            window.cqeBedrockCreateClient = function(config) {
+                                console.log('🔍 DEBUG: 🔧 Direct wrapper: Creating Bedrock client');
+                                return BedrockAgentRuntime.createClient(config);
+                            };
+                            
+                            window.cqeBedrockGenerateSessionId = function() {
+                                console.log('🔍 DEBUG: 🔧 Direct wrapper: Generating session ID');
+                                if (BedrockAgentRuntime.utils && BedrockAgentRuntime.utils.generateSessionId) {
+                                    return BedrockAgentRuntime.utils.generateSessionId();
+                                } else {
+                                    return 'cqe_session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                                }
+                            };
+                            
+                            window.cqeBedrockCreateCredentials = function(accessKeyId, secretAccessKey, sessionToken) {
+                                console.log('🔍 DEBUG: 🔧 Direct wrapper: Creating credentials');
+                                if (BedrockAgentRuntime.utils && BedrockAgentRuntime.utils.createCredentials) {
+                                    return BedrockAgentRuntime.utils.createCredentials(accessKeyId, secretAccessKey, sessionToken);
+                                } else {
+                                    return { accessKeyId, secretAccessKey, sessionToken };
+                                }
+                            };
+                            
+                            console.log('🔍 DEBUG: ✅ Direct wrapper functions created successfully');
+                            this.bundleLoaded = true;
+                            window.log('Bedrock Agent Runtime direct wrapper functions created');
+                            return true;
+                            
+                        } catch (wrapperError) {
+                            console.log('🔍 DEBUG: ❌ Failed to create direct wrapper functions:', wrapperError);
+                        }
+                    }
+                    
+                    console.log('🔍 DEBUG: ❌ No wrapper functions available and cannot create them');
+                    window.log('Bedrock wrapper functions not available');
                     return false;
                 }
                 
-                console.log('🔍 DEBUG: BedrockAgentRuntime bundle found:', typeof BedrockAgentRuntime);
-                console.log('🔍 DEBUG: Available methods:', Object.keys(BedrockAgentRuntime));
-                
-                this.bundleLoaded = true;
-                console.log('🔍 DEBUG: Bundle loaded successfully');
-                window.log('Bedrock Agent Runtime bundle loaded successfully');
-                return true;
-                
             } catch (error) {
-                console.log('🔍 DEBUG: Failed to initialize bundle:', error);
-                window.log('Failed to initialize Bedrock bundle:', error);
+                console.log('🔍 DEBUG: Failed to initialize wrapper functions:', error);
+                window.log('Failed to initialize Bedrock wrapper functions:', error);
                 return false;
             }
         },
         
-        // Initialize Bedrock Agent Runtime client using the bundle
+        // Initialize Bedrock Agent Runtime client using wrapper functions
         initializeClient: function() {
             if (this.client) {
                 return this.client;
@@ -68,16 +114,16 @@
             
             const bundleReady = this.initializeBundle();
             if (!bundleReady) {
-                throw new Error('Bedrock Agent Runtime bundle not available');
+                throw new Error('Bedrock Agent Runtime wrapper functions not available');
             }
             
             try {
-                console.log('🔍 DEBUG: Creating BedrockAgentRuntime client using bundle...');
+                console.log('🔍 DEBUG: Creating BedrockAgentRuntime client using wrapper functions...');
                 
                 // Get credentials from various sources
                 const credentials = this.getBundleCredentials();
                 
-                // Create client using the bundle's createClient method
+                // Create client using the wrapper function
                 const clientConfig = {
                     region: this.CONFIG.region,
                     credentials: credentials
@@ -88,22 +134,23 @@
                     hasCredentials: !!clientConfig.credentials
                 });
                 
-                this.client = BedrockAgentRuntime.createClient(clientConfig);
+                // Use the wrapper function to create the client
+                this.client = window.cqeBedrockCreateClient(clientConfig);
                 
-                console.log('🔍 DEBUG: BedrockAgentRuntime client created successfully using bundle');
-                window.log('Bedrock Agent Runtime client initialized using custom bundle');
+                console.log('🔍 DEBUG: BedrockAgentRuntime client created successfully using wrapper functions');
+                window.log('Bedrock Agent Runtime client initialized using wrapper functions');
                 return this.client;
                 
             } catch (error) {
                 console.log('🔍 DEBUG: Failed to create BedrockAgentRuntime client:', error);
-                window.log('Failed to initialize Bedrock client using bundle:', error);
+                window.log('Failed to initialize Bedrock client using wrapper functions:', error);
                 throw new Error(`Failed to initialize Bedrock client: ${error.message}`);
             }
         },
         
-        // Get credentials for the bundle
+        // Get credentials for the bundle using wrapper functions
         getBundleCredentials: function() {
-            console.log('🔍 DEBUG: Attempting to get credentials for bundle...');
+            console.log('🔍 DEBUG: Attempting to get credentials for wrapper functions...');
             
             // Method 1: Try to get credentials from the credentials helper
             try {
@@ -113,8 +160,8 @@
                     if (helperCredentials) {
                         console.log('🔍 DEBUG: Successfully got credentials from helper');
                         
-                        // Use the bundle's utility function to create credentials
-                        return BedrockAgentRuntime.utils.createCredentials(
+                        // Use the wrapper function to create credentials
+                        return window.cqeBedrockCreateCredentials(
                             helperCredentials.accessKeyId,
                             helperCredentials.secretAccessKey,
                             helperCredentials.sessionToken
@@ -135,12 +182,14 @@
         },
         
         generateSessionId: function() {
-            // Use the bundle's utility function if available
-            if (typeof BedrockAgentRuntime !== 'undefined' && BedrockAgentRuntime.utils && BedrockAgentRuntime.utils.generateSessionId) {
-                return BedrockAgentRuntime.utils.generateSessionId();
+            // Use the wrapper function if available
+            if (typeof window.cqeBedrockGenerateSessionId === 'function') {
+                console.log('🔍 DEBUG: Using wrapper function to generate session ID');
+                return window.cqeBedrockGenerateSessionId();
             }
             
             // Fallback to manual generation
+            console.log('🔍 DEBUG: Using fallback session ID generation');
             return 'cqe_session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         },
         
@@ -155,10 +204,10 @@
             this.currentSessionId = null;
         },
         
-        // Perform the actual Bedrock Agent request using the bundle
+        // Perform the actual Bedrock Agent request using wrapper functions
         performRequest: async function(prompt, config) {
             console.log('🔍 DEBUG: performRequest called with prompt:', prompt.substring(0, 50) + '...');
-            console.log('🔍 DEBUG: Using custom Bedrock Agent Runtime bundle');
+            console.log('🔍 DEBUG: Using Bedrock Agent Runtime wrapper functions');
             
             try {
                 console.log('🔍 DEBUG: Attempting to initialize client...');
@@ -166,7 +215,7 @@
                 const sessionId = this.getSessionId();
                 
                 console.log('🔍 DEBUG: Client initialized, invoking Bedrock Agent...');
-                window.log('Invoking Bedrock Agent with custom bundle, prompt:', prompt.substring(0, 100) + '...');
+                window.log('Invoking Bedrock Agent with wrapper functions, prompt:', prompt.substring(0, 100) + '...');
                 
                 // Use the client's invokeAgent method
                 const requestParams = {
@@ -183,8 +232,8 @@
                     inputLength: prompt.length
                 });
                 
-                // Make the actual Bedrock Agent call using the bundle
-                console.log('🔍 DEBUG: Sending request to Bedrock Agent via bundle...');
+                // Make the actual Bedrock Agent call using the client
+                console.log('🔍 DEBUG: Sending request to Bedrock Agent via wrapper functions...');
                 const response = await client.invokeAgent(requestParams);
                 
                 console.log('🔍 DEBUG: Bedrock Agent response received:', response);
@@ -220,7 +269,7 @@
                 return {
                     success: true,
                     response: completion,
-                    model: 'bedrock-agent-bundle',
+                    model: 'bedrock-agent-wrapper',
                     requestId: sessionId,
                     usage: {
                         promptTokens: Math.floor(prompt.length / 4),
@@ -234,7 +283,7 @@
                 console.log('🔍 DEBUG: Error message:', error.message);
                 console.log('🔍 DEBUG: Error stack:', error.stack);
                 
-                window.log('Bedrock Agent bundle request error:', error);
+                window.log('Bedrock Agent wrapper request error:', error);
                 
                 // Check for authentication errors
                 if (error.message.includes('credentials') || 
@@ -250,7 +299,7 @@
             }
         },
         
-        // Make LLM request with retry logic (using bundle)
+        // Make LLM request with retry logic (using wrapper functions)
         makeRequest: async function(prompt, options = {}) {
             console.log('🔍 DEBUG: makeRequest called with prompt:', prompt.substring(0, 50) + '...');
             console.log('🔍 DEBUG: makeRequest options:', options);
@@ -260,15 +309,15 @@
             
             for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
                 try {
-                    console.log(`🔍 DEBUG: Bedrock Agent bundle attempt ${attempt}/${config.maxRetries}`);
-                    window.log(`Bedrock Agent bundle attempt ${attempt}/${config.maxRetries}`);
+                    console.log(`🔍 DEBUG: Bedrock Agent wrapper attempt ${attempt}/${config.maxRetries}`);
+                    window.log(`Bedrock Agent wrapper attempt ${attempt}/${config.maxRetries}`);
                     
                     console.log('🔍 DEBUG: About to call this.performRequest...');
                     const response = await this.performRequest(prompt, config);
                     console.log('🔍 DEBUG: performRequest returned:', response);
                     
                     if (response.success) {
-                        window.log('Bedrock Agent bundle request successful');
+                        window.log('Bedrock Agent wrapper request successful');
                         return response;
                     } else {
                         throw new Error(response.error || 'Unknown API error');
@@ -276,7 +325,7 @@
                     
                 } catch (error) {
                     lastError = error;
-                    window.log(`Bedrock API bundle attempt ${attempt} failed:`, error.message);
+                    window.log(`Bedrock API wrapper attempt ${attempt} failed:`, error.message);
                     
                     // Check for authentication errors - don't retry these
                     if (error.message.includes('Authentication failed') || 
@@ -303,7 +352,7 @@
             }
             
             // All retries failed
-            window.log('All Bedrock Agent bundle attempts failed:', lastError);
+            window.log('All Bedrock Agent wrapper attempts failed:', lastError);
             return {
                 success: false,
                 error: lastError.message || 'Bedrock Agent service unavailable',
@@ -317,12 +366,12 @@
         }
     };
     
-    // Multi-Function Agent Integration Functions (Updated for Bundle)
+    // Multi-Function Agent Integration Functions (Updated for Wrapper Functions)
     
     // Generate search term using the multi-function agent
     window.generateSearchTermWithAgent = async function(formData) {
         console.log('🔍 generateSearchTermWithAgent called with:', formData);
-        window.log('Generating search term with multi-function agent (bundle)');
+        window.log('Generating search term with multi-function agent (wrapper functions)');
         
         // Prepare the JSON input for search term generation
         const agentInput = {
@@ -351,7 +400,7 @@
                     
                     if (parsed.function_executed === 'search_term_generation' && parsed.search_term) {
                         console.log('🎯 EXTRACTED SEARCH TERM:', `"${parsed.search_term}"`);
-                        window.log('Search term generated successfully (bundle):', parsed.search_term);
+                        window.log('Search term generated successfully (wrapper functions):', parsed.search_term);
                         
                         return {
                             success: true,
@@ -364,7 +413,7 @@
                     }
                 } catch (parseError) {
                     console.error('❌ Failed to parse agent response:', parseError);
-                    window.log('Error parsing search term response (bundle):', parseError.message);
+                    window.log('Error parsing search term response (wrapper functions):', parseError.message);
                     
                     return {
                         success: false,
@@ -382,7 +431,7 @@
             }
         } catch (error) {
             console.error('❌ Error in generateSearchTermWithAgent:', error);
-            window.log('Error generating search term (bundle):', error.message);
+            window.log('Error generating search term (wrapper functions):', error.message);
             
             return {
                 success: false,
@@ -394,7 +443,7 @@
     // Generate supplier summary using the multi-function agent
     window.generateSupplierSummaryWithAgent = async function(formData) {
         console.log('📋 generateSupplierSummaryWithAgent called with:', formData);
-        window.log('Generating supplier summary with multi-function agent (bundle)');
+        window.log('Generating supplier summary with multi-function agent (wrapper functions)');
         
         // Prepare the JSON input for supplier summary generation
         const agentInput = {
@@ -429,7 +478,7 @@
                         console.log(parsed.summary);
                         console.log('────────────────────────────────────────');
                         
-                        window.log('Supplier summary generated successfully (bundle)');
+                        window.log('Supplier summary generated successfully (wrapper functions)');
                         
                         return {
                             success: true,
@@ -442,7 +491,7 @@
                     }
                 } catch (parseError) {
                     console.error('❌ Failed to parse agent response:', parseError);
-                    window.log('Error parsing supplier summary response (bundle):', parseError.message);
+                    window.log('Error parsing supplier summary response (wrapper functions):', parseError.message);
                     
                     return {
                         success: false,
@@ -460,7 +509,7 @@
             }
         } catch (error) {
             console.error('❌ Error in generateSupplierSummaryWithAgent:', error);
-            window.log('Error generating supplier summary (bundle):', error.message);
+            window.log('Error generating supplier summary (wrapper functions):', error.message);
             
             return {
                 success: false,
@@ -469,5 +518,5 @@
         }
     };
     
-    window.log('Bedrock Integration module loaded with custom bundle support');
+    window.log('Bedrock Integration module loaded with wrapper function support');
 })();
