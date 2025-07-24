@@ -1,17 +1,17 @@
 // ==UserScript==
 // @name         CQE Bedrock Integration Module
 // @namespace    http://amazon.com/cqe
-// @version      2.0
-// @description  AWS Bedrock Agent integration for CQE Alternates Enhancement (Browser-Compatible SDK v3)
+// @version      3.0
+// @description  AWS Bedrock Agent integration for CQE Alternates Enhancement (Using Custom Bundle)
 // @author       Amazon
 // @grant        none
-// @require      https://unpkg.com/@aws-sdk/client-bedrock-agent-runtime@3.478.0/dist-browser/index.js
+// @require      https://raw.githubusercontent.com/jfermon22/hackathon2025-cqe-alts/refs/heads/main/bedrock-userscript-bundle/dist/bedrock-agent-runtime.min.js
 // ==/UserScript==
 
 (function() {
     'use strict';
     
-    // AWS Bedrock Agent Runtime Integration System (Browser-Compatible)
+    // AWS Bedrock Agent Runtime Integration System (Using Custom Bundle)
     window.BEDROCK_AGENT_INTEGRATION = {
         // Configuration - Multi-Function Agent
         CONFIG: {
@@ -23,158 +23,87 @@
             retryDelay: 1000 // 1 second base delay
         },
         
-        // SDK v3 modules and client management
-        sdkLoaded: false,
-        BedrockAgentRuntimeClient: null,
-        InvokeAgentCommand: null,
+        // Bundle integration
+        bundleLoaded: false,
         client: null,
         currentSessionId: null,
         
-        // Initialize AWS SDK v3 using @require pre-loaded module
-        initializeSDK: async function() {
-            console.log('🔍 DEBUG: initializeSDK v3 called');
+        // Initialize using the custom bundle
+        initializeBundle: function() {
+            console.log('🔍 DEBUG: initializeBundle called');
             
-            if (this.sdkLoaded && this.BedrockAgentRuntimeClient && this.InvokeAgentCommand) {
-                console.log('🔍 DEBUG: SDK v3 already loaded, returning true');
+            if (this.bundleLoaded && this.client) {
+                console.log('🔍 DEBUG: Bundle already loaded and client created');
                 return true;
             }
             
             try {
-                console.log('🔍 DEBUG: Using @require pre-loaded AWS SDK v3...');
-                window.log('Loading AWS SDK v3...');
-                
-                // Check if the SDK was loaded via @require
-                if (typeof window.AWS !== 'undefined' && window.AWS.BedrockAgentRuntime) {
-                    // AWS SDK v3 loaded via @require (UMD format)
-                    console.log('🔍 DEBUG: Found AWS SDK v3 in window.AWS');
-                    this.BedrockAgentRuntimeClient = window.AWS.BedrockAgentRuntime.BedrockAgentRuntimeClient;
-                    this.InvokeAgentCommand = window.AWS.BedrockAgentRuntime.InvokeAgentCommand;
-                } else if (typeof BedrockAgentRuntimeClient !== 'undefined') {
-                    // AWS SDK v3 loaded via @require (global variables)
-                    console.log('🔍 DEBUG: Found AWS SDK v3 as global variables');
-                    this.BedrockAgentRuntimeClient = BedrockAgentRuntimeClient;
-                    this.InvokeAgentCommand = InvokeAgentCommand;
-                } else {
-                    // Fallback to dynamic import if @require didn't work
-                    console.log('🔍 DEBUG: @require failed, falling back to dynamic import...');
-                    const sdkModule = await import('https://unpkg.com/@aws-sdk/client-bedrock-agent-runtime@3.478.0/dist-es/index.js');
-                    this.BedrockAgentRuntimeClient = sdkModule.BedrockAgentRuntimeClient;
-                    this.InvokeAgentCommand = sdkModule.InvokeAgentCommand;
+                // Check if BedrockAgentRuntime bundle is available
+                if (typeof BedrockAgentRuntime === 'undefined') {
+                    console.log('🔍 DEBUG: BedrockAgentRuntime bundle not found');
+                    window.log('BedrockAgentRuntime bundle not available');
+                    return false;
                 }
                 
-                if (!this.BedrockAgentRuntimeClient || !this.InvokeAgentCommand) {
-                    throw new Error('Required AWS SDK v3 classes not found');
-                }
+                console.log('🔍 DEBUG: BedrockAgentRuntime bundle found:', typeof BedrockAgentRuntime);
+                console.log('🔍 DEBUG: Available methods:', Object.keys(BedrockAgentRuntime));
                 
-                this.sdkLoaded = true;
-                console.log('🔍 DEBUG: AWS SDK v3 loaded and configured successfully');
-                console.log('🔍 DEBUG: BedrockAgentRuntimeClient:', typeof this.BedrockAgentRuntimeClient);
-                console.log('🔍 DEBUG: InvokeAgentCommand:', typeof this.InvokeAgentCommand);
-                window.log('AWS SDK v3 loaded successfully');
+                this.bundleLoaded = true;
+                console.log('🔍 DEBUG: Bundle loaded successfully');
+                window.log('Bedrock Agent Runtime bundle loaded successfully');
                 return true;
                 
             } catch (error) {
-                console.log('🔍 DEBUG: Failed to load AWS SDK v3:', error);
-                window.log('Failed to load AWS SDK v3:', error);
+                console.log('🔍 DEBUG: Failed to initialize bundle:', error);
+                window.log('Failed to initialize Bedrock bundle:', error);
                 return false;
             }
         },
         
-        // Initialize Bedrock Agent Runtime client
-        initializeClient: async function() {
+        // Initialize Bedrock Agent Runtime client using the bundle
+        initializeClient: function() {
             if (this.client) {
                 return this.client;
             }
             
-            const sdkReady = await this.initializeSDK();
-            if (!sdkReady) {
-                throw new Error('AWS SDK v3 not available');
+            const bundleReady = this.initializeBundle();
+            if (!bundleReady) {
+                throw new Error('Bedrock Agent Runtime bundle not available');
             }
             
             try {
-                console.log('🔍 DEBUG: Creating BedrockAgentRuntimeClient with browser-compatible config...');
+                console.log('🔍 DEBUG: Creating BedrockAgentRuntime client using bundle...');
                 
-                // Try to get browser credentials from various sources
-                const credentials = await this.getBrowserCredentials();
+                // Get credentials from various sources
+                const credentials = this.getBundleCredentials();
                 
-                // Browser-compatible client configuration
+                // Create client using the bundle's createClient method
                 const clientConfig = {
                     region: this.CONFIG.region,
-                    credentials: credentials,
-                    maxAttempts: 3,
-                    requestHandler: undefined // Use default browser request handler
+                    credentials: credentials
                 };
                 
                 console.log('🔍 DEBUG: Client config (credentials hidden):', {
                     region: clientConfig.region,
-                    hasCredentials: !!clientConfig.credentials,
-                    maxAttempts: clientConfig.maxAttempts
+                    hasCredentials: !!clientConfig.credentials
                 });
                 
-                // Create Bedrock Agent Runtime client with browser-compatible approach
-                // Use a wrapper to handle constructor inheritance issues
-                try {
-                    this.client = new this.BedrockAgentRuntimeClient(clientConfig);
-                } catch (constructorError) {
-                    console.log('🔍 DEBUG: Direct constructor failed, trying wrapper approach:', constructorError.message);
-                    
-                    // Try creating with a wrapper function to handle inheritance issues
-                    const ClientClass = this.BedrockAgentRuntimeClient;
-                    this.client = Object.create(ClientClass.prototype);
-                    ClientClass.call(this.client, clientConfig);
-                }
+                this.client = BedrockAgentRuntime.createClient(clientConfig);
                 
-                console.log('🔍 DEBUG: BedrockAgentRuntimeClient created successfully');
-                window.log('Bedrock Agent Runtime client v3 initialized');
+                console.log('🔍 DEBUG: BedrockAgentRuntime client created successfully using bundle');
+                window.log('Bedrock Agent Runtime client initialized using custom bundle');
                 return this.client;
                 
             } catch (error) {
-                console.log('🔍 DEBUG: Failed to create BedrockAgentRuntimeClient:', error);
-                window.log('Failed to initialize Bedrock client v3:', error);
-                
-                // Try alternative initialization approaches
-                const fallbackApproaches = [
-                    // Approach 1: Minimal config with no credentials (let AWS SDK handle)
-                    () => new this.BedrockAgentRuntimeClient({
-                        region: this.CONFIG.region
-                    }),
-                    
-                    // Approach 2: Try with empty credentials object
-                    () => new this.BedrockAgentRuntimeClient({
-                        region: this.CONFIG.region,
-                        credentials: {}
-                    }),
-                    
-                    // Approach 3: Try with fromEnv credentials provider
-                    async () => {
-                        const { fromEnv } = await import('@aws-sdk/credential-providers');
-                        return new this.BedrockAgentRuntimeClient({
-                            region: this.CONFIG.region,
-                            credentials: fromEnv()
-                        });
-                    }
-                ];
-                
-                for (let i = 0; i < fallbackApproaches.length; i++) {
-                    try {
-                        console.log(`🔍 DEBUG: Trying fallback approach ${i + 1}...`);
-                        this.client = await fallbackApproaches[i]();
-                        console.log(`🔍 DEBUG: Fallback approach ${i + 1} successful`);
-                        window.log(`Bedrock Agent Runtime client v3 initialized (fallback approach ${i + 1})`);
-                        return this.client;
-                    } catch (fallbackError) {
-                        console.log(`🔍 DEBUG: Fallback approach ${i + 1} failed:`, fallbackError.message);
-                        continue;
-                    }
-                }
-                
-                throw new Error(`Failed to initialize Bedrock client: ${error.message}. All fallback approaches also failed.`);
+                console.log('🔍 DEBUG: Failed to create BedrockAgentRuntime client:', error);
+                window.log('Failed to initialize Bedrock client using bundle:', error);
+                throw new Error(`Failed to initialize Bedrock client: ${error.message}`);
             }
         },
         
-        // Get browser credentials from various sources
-        getBrowserCredentials: async function() {
-            console.log('🔍 DEBUG: Attempting to get browser credentials...');
+        // Get credentials for the bundle
+        getBundleCredentials: function() {
+            console.log('🔍 DEBUG: Attempting to get credentials for bundle...');
             
             // Method 1: Try to get credentials from the credentials helper
             try {
@@ -183,75 +112,35 @@
                     const helperCredentials = window.AWS_CREDENTIALS_HELPER.createCredentialsProvider();
                     if (helperCredentials) {
                         console.log('🔍 DEBUG: Successfully got credentials from helper');
-                        return helperCredentials;
+                        
+                        // Use the bundle's utility function to create credentials
+                        return BedrockAgentRuntime.utils.createCredentials(
+                            helperCredentials.accessKeyId,
+                            helperCredentials.secretAccessKey,
+                            helperCredentials.sessionToken
+                        );
                     }
                 }
             } catch (error) {
                 console.log('🔍 DEBUG: Failed to get credentials from helper:', error.message);
             }
             
-            // Method 2: Try to get credentials from AWS Console session (if user is logged in)
-            try {
-                // Check if we're in AWS Console context
-                if (window.location && window.location.hostname && window.location.hostname.includes('console.aws.amazon.com')) {
-                    console.log('🔍 DEBUG: Detected AWS Console context, trying to extract session credentials...');
-                    
-                    // Try to extract credentials from AWS Console session
-                    const sessionCredentials = await this.extractAWSConsoleCredentials();
-                    if (sessionCredentials) {
-                        console.log('🔍 DEBUG: Successfully extracted AWS Console credentials');
-                        return sessionCredentials;
-                    }
-                }
-            } catch (error) {
-                console.log('🔍 DEBUG: Failed to get AWS Console credentials:', error.message);
-            }
-            
-            // Method 3: Try environment-based credentials (for development)
-            try {
-                console.log('🔍 DEBUG: Trying environment-based credentials...');
-                const { fromEnv } = await import('@aws-sdk/credential-providers');
-                const envCredentials = fromEnv();
-                console.log('🔍 DEBUG: Environment credentials provider created');
-                return envCredentials;
-            } catch (error) {
-                console.log('🔍 DEBUG: Failed to get environment credentials:', error.message);
-            }
-            
-            // Method 4: Try to use browser's default credential chain
-            try {
-                console.log('🔍 DEBUG: Trying browser default credential chain...');
-                const { defaultProvider } = await import('@aws-sdk/credential-providers');
-                const defaultCredentials = defaultProvider();
-                console.log('🔍 DEBUG: Default credential provider created');
-                return defaultCredentials;
-            } catch (error) {
-                console.log('🔍 DEBUG: Failed to get default credentials:', error.message);
-            }
-            
-            // Method 5: Provide helpful guidance if no credentials found
-            console.log('🔍 DEBUG: No credentials found, returning undefined (will use SDK defaults)');
+            // Method 2: Provide helpful guidance if no credentials found
+            console.log('🔍 DEBUG: No credentials found, returning null (client will need credentials)');
             console.log('💡 HINT: If you need to set credentials for testing, use:');
             console.log('   AWS_CREDENTIALS_HELPER.setupCredentialsInteractively()');
             console.log('   or AWS_CREDENTIALS_HELPER.setTemporaryCredentials(keyId, secret, token)');
             
-            return undefined;
-        },
-        
-        // Extract credentials from AWS Console session (if available)
-        extractAWSConsoleCredentials: async function() {
-            try {
-                // This is a placeholder for AWS Console credential extraction
-                // In a real implementation, this would extract session tokens from the AWS Console
-                console.log('🔍 DEBUG: AWS Console credential extraction not implemented yet');
-                return null;
-            } catch (error) {
-                console.log('🔍 DEBUG: Error extracting AWS Console credentials:', error);
-                return null;
-            }
+            return null;
         },
         
         generateSessionId: function() {
+            // Use the bundle's utility function if available
+            if (typeof BedrockAgentRuntime !== 'undefined' && BedrockAgentRuntime.utils && BedrockAgentRuntime.utils.generateSessionId) {
+                return BedrockAgentRuntime.utils.generateSessionId();
+            }
+            
+            // Fallback to manual generation
             return 'cqe_session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         },
         
@@ -266,64 +155,72 @@
             this.currentSessionId = null;
         },
         
-        // Perform the actual Bedrock Agent request (matches POC implementation)
+        // Perform the actual Bedrock Agent request using the bundle
         performRequest: async function(prompt, config) {
-            console.log('🔍 DEBUG: performRequest v3 called with prompt:', prompt.substring(0, 50) + '...');
-            console.log('🔍 DEBUG: Using AWS SDK v3 Bedrock Agent implementation');
+            console.log('🔍 DEBUG: performRequest called with prompt:', prompt.substring(0, 50) + '...');
+            console.log('🔍 DEBUG: Using custom Bedrock Agent Runtime bundle');
             
             try {
-                console.log('🔍 DEBUG: Attempting to initialize client v3...');
-                const client = await this.initializeClient();
+                console.log('🔍 DEBUG: Attempting to initialize client...');
+                const client = this.initializeClient();
                 const sessionId = this.getSessionId();
                 
-                console.log('🔍 DEBUG: Client v3 initialized, invoking Bedrock Agent...');
-                window.log('Invoking Bedrock Agent v3 with prompt:', prompt.substring(0, 100) + '...');
+                console.log('🔍 DEBUG: Client initialized, invoking Bedrock Agent...');
+                window.log('Invoking Bedrock Agent with custom bundle, prompt:', prompt.substring(0, 100) + '...');
                 
-                // Create command exactly like the POC
-                const command = new this.InvokeAgentCommand({
+                // Use the client's invokeAgent method
+                const requestParams = {
                     agentId: config.agentId,
                     agentAliasId: config.agentAliasId,
                     sessionId: sessionId,
                     inputText: prompt
-                });
+                };
                 
-                console.log('🔍 DEBUG: Bedrock Agent v3 command created:', {
+                console.log('🔍 DEBUG: Bedrock Agent request params:', {
                     agentId: config.agentId,
                     agentAliasId: config.agentAliasId,
                     sessionId: sessionId,
                     inputLength: prompt.length
                 });
                 
-                // Make the actual Bedrock Agent call
-                console.log('🔍 DEBUG: Sending command to Bedrock Agent v3...');
-                const response = await client.send(command);
+                // Make the actual Bedrock Agent call using the bundle
+                console.log('🔍 DEBUG: Sending request to Bedrock Agent via bundle...');
+                const response = await client.invokeAgent(requestParams);
                 
-                console.log('🔍 DEBUG: Bedrock Agent v3 response received:', response);
+                console.log('🔍 DEBUG: Bedrock Agent response received:', response);
                 
-                if (!response.completion) {
+                if (!response || !response.completion) {
                     throw new Error('No completion in response');
                 }
                 
-                // Process streaming response exactly like the POC
-                console.log('🔍 DEBUG: Processing streaming response...');
+                // The bundle should handle the streaming response processing
                 let completion = '';
                 
-                for await (const chunkEvent of response.completion) {
-                    const chunk = chunkEvent.chunk;
-                    if (chunk && chunk.bytes) {
-                        console.log(`🔍 DEBUG: Received chunk (${chunk.bytes.length} bytes)`);
-                        const decodedResponse = new TextDecoder('utf-8').decode(chunk.bytes);
-                        completion += decodedResponse;
-                        console.log(`🔍 DEBUG: Decoded chunk: "${decodedResponse.substring(0, 100)}${decodedResponse.length > 100 ? '...' : ''}"`);
+                if (typeof response.completion === 'string') {
+                    // If the bundle already processed the streaming response
+                    completion = response.completion;
+                    console.log('🔍 DEBUG: Bundle returned processed completion:', completion);
+                } else {
+                    // If we need to process the streaming response
+                    console.log('🔍 DEBUG: Processing streaming response...');
+                    
+                    for await (const chunkEvent of response.completion) {
+                        const chunk = chunkEvent.chunk;
+                        if (chunk && chunk.bytes) {
+                            console.log(`🔍 DEBUG: Received chunk (${chunk.bytes.length} bytes)`);
+                            const decodedResponse = new TextDecoder('utf-8').decode(chunk.bytes);
+                            completion += decodedResponse;
+                            console.log(`🔍 DEBUG: Decoded chunk: "${decodedResponse.substring(0, 100)}${decodedResponse.length > 100 ? '...' : ''}"`);
+                        }
                     }
                 }
                 
-                console.log('🔍 DEBUG: Final completion v3:', completion);
+                console.log('🔍 DEBUG: Final completion:', completion);
                 
                 return {
                     success: true,
                     response: completion,
-                    model: 'bedrock-agent-v3',
+                    model: 'bedrock-agent-bundle',
                     requestId: sessionId,
                     usage: {
                         promptTokens: Math.floor(prompt.length / 4),
@@ -333,11 +230,11 @@
                 };
                 
             } catch (error) {
-                console.log('🔍 DEBUG: Error in performRequest v3:', error);
+                console.log('🔍 DEBUG: Error in performRequest:', error);
                 console.log('🔍 DEBUG: Error message:', error.message);
                 console.log('🔍 DEBUG: Error stack:', error.stack);
                 
-                window.log('Bedrock Agent v3 request error:', error);
+                window.log('Bedrock Agent bundle request error:', error);
                 
                 // Check for authentication errors
                 if (error.message.includes('credentials') || 
@@ -346,32 +243,32 @@
                     error.message.includes('ExpiredToken') ||
                     error.name === 'ExpiredTokenException' ||
                     error.name === 'AccessDeniedException') {
-                    throw new Error('Authentication failed: Please ensure you\'re logged in to AWS and have valid credentials.');
+                    throw new Error('Authentication failed: Please ensure you have valid AWS credentials configured.');
                 }
                 
                 throw error;
             }
         },
         
-        // Make LLM request with retry logic (updated for v3)
+        // Make LLM request with retry logic (using bundle)
         makeRequest: async function(prompt, options = {}) {
-            console.log('🔍 DEBUG: makeRequest v3 called with prompt:', prompt.substring(0, 50) + '...');
-            console.log('🔍 DEBUG: makeRequest v3 options:', options);
+            console.log('🔍 DEBUG: makeRequest called with prompt:', prompt.substring(0, 50) + '...');
+            console.log('🔍 DEBUG: makeRequest options:', options);
             
             const config = { ...this.CONFIG, ...options };
             let lastError = null;
             
             for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
                 try {
-                    console.log(`🔍 DEBUG: Bedrock Agent v3 attempt ${attempt}/${config.maxRetries}`);
-                    window.log(`Bedrock Agent v3 attempt ${attempt}/${config.maxRetries}`);
+                    console.log(`🔍 DEBUG: Bedrock Agent bundle attempt ${attempt}/${config.maxRetries}`);
+                    window.log(`Bedrock Agent bundle attempt ${attempt}/${config.maxRetries}`);
                     
-                    console.log('🔍 DEBUG: About to call this.performRequest v3...');
+                    console.log('🔍 DEBUG: About to call this.performRequest...');
                     const response = await this.performRequest(prompt, config);
-                    console.log('🔍 DEBUG: performRequest v3 returned:', response);
+                    console.log('🔍 DEBUG: performRequest returned:', response);
                     
                     if (response.success) {
-                        window.log('Bedrock Agent v3 request successful');
+                        window.log('Bedrock Agent bundle request successful');
                         return response;
                     } else {
                         throw new Error(response.error || 'Unknown API error');
@@ -379,7 +276,7 @@
                     
                 } catch (error) {
                     lastError = error;
-                    window.log(`Bedrock API v3 attempt ${attempt} failed:`, error.message);
+                    window.log(`Bedrock API bundle attempt ${attempt} failed:`, error.message);
                     
                     // Check for authentication errors - don't retry these
                     if (error.message.includes('Authentication failed') || 
@@ -392,7 +289,7 @@
                         return {
                             success: false,
                             error: 'Authentication failed',
-                            response: 'I\'m having trouble authenticating with the AI service. Please ensure you\'re logged in to AWS and have the necessary permissions.',
+                            response: 'I\'m having trouble authenticating with the AI service. Please ensure you have valid AWS credentials configured.',
                             authError: true
                         };
                     }
@@ -406,7 +303,7 @@
             }
             
             // All retries failed
-            window.log('All Bedrock Agent v3 attempts failed:', lastError);
+            window.log('All Bedrock Agent bundle attempts failed:', lastError);
             return {
                 success: false,
                 error: lastError.message || 'Bedrock Agent service unavailable',
@@ -420,12 +317,12 @@
         }
     };
     
-    // Multi-Function Agent Integration Functions (Updated for v3)
+    // Multi-Function Agent Integration Functions (Updated for Bundle)
     
     // Generate search term using the multi-function agent
     window.generateSearchTermWithAgent = async function(formData) {
-        console.log('🔍 generateSearchTermWithAgent v3 called with:', formData);
-        window.log('Generating search term with multi-function agent v3');
+        console.log('🔍 generateSearchTermWithAgent called with:', formData);
+        window.log('Generating search term with multi-function agent (bundle)');
         
         // Prepare the JSON input for search term generation
         const agentInput = {
@@ -441,20 +338,20 @@
         };
         
         const jsonInput = JSON.stringify(agentInput, null, 2);
-        console.log('📤 RAW INPUT TO AGENT v3 (Search Term Generation):', jsonInput);
+        console.log('📤 RAW INPUT TO AGENT (Search Term Generation):', jsonInput);
         
         try {
             const response = await window.BEDROCK_AGENT_INTEGRATION.makeRequest(jsonInput);
             
             if (response.success) {
-                console.log('📥 RAW OUTPUT FROM AGENT v3 (Search Term Generation):', response.response);
+                console.log('📥 RAW OUTPUT FROM AGENT (Search Term Generation):', response.response);
                 
                 try {
                     const parsed = JSON.parse(response.response);
                     
                     if (parsed.function_executed === 'search_term_generation' && parsed.search_term) {
-                        console.log('🎯 EXTRACTED SEARCH TERM v3:', `"${parsed.search_term}"`);
-                        window.log('Search term generated successfully v3:', parsed.search_term);
+                        console.log('🎯 EXTRACTED SEARCH TERM:', `"${parsed.search_term}"`);
+                        window.log('Search term generated successfully (bundle):', parsed.search_term);
                         
                         return {
                             success: true,
@@ -466,8 +363,8 @@
                         throw new Error('Invalid response format or missing search_term field');
                     }
                 } catch (parseError) {
-                    console.error('❌ Failed to parse agent v3 response:', parseError);
-                    window.log('Error parsing search term response v3:', parseError.message);
+                    console.error('❌ Failed to parse agent response:', parseError);
+                    window.log('Error parsing search term response (bundle):', parseError.message);
                     
                     return {
                         success: false,
@@ -476,7 +373,7 @@
                     };
                 }
             } else {
-                console.error('❌ Agent v3 request failed:', response.error);
+                console.error('❌ Agent request failed:', response.error);
                 return {
                     success: false,
                     error: response.error,
@@ -484,8 +381,8 @@
                 };
             }
         } catch (error) {
-            console.error('❌ Error in generateSearchTermWithAgent v3:', error);
-            window.log('Error generating search term v3:', error.message);
+            console.error('❌ Error in generateSearchTermWithAgent:', error);
+            window.log('Error generating search term (bundle):', error.message);
             
             return {
                 success: false,
@@ -496,8 +393,8 @@
     
     // Generate supplier summary using the multi-function agent
     window.generateSupplierSummaryWithAgent = async function(formData) {
-        console.log('📋 generateSupplierSummaryWithAgent v3 called with:', formData);
-        window.log('Generating supplier summary with multi-function agent v3');
+        console.log('📋 generateSupplierSummaryWithAgent called with:', formData);
+        window.log('Generating supplier summary with multi-function agent (bundle)');
         
         // Prepare the JSON input for supplier summary generation
         const agentInput = {
@@ -515,24 +412,24 @@
         };
         
         const jsonInput = JSON.stringify(agentInput, null, 2);
-        console.log('📤 RAW INPUT TO AGENT v3 (Supplier Summary):', jsonInput);
+        console.log('📤 RAW INPUT TO AGENT (Supplier Summary):', jsonInput);
         
         try {
             const response = await window.BEDROCK_AGENT_INTEGRATION.makeRequest(jsonInput);
             
             if (response.success) {
-                console.log('📥 RAW OUTPUT FROM AGENT v3 (Supplier Summary):', response.response);
+                console.log('📥 RAW OUTPUT FROM AGENT (Supplier Summary):', response.response);
                 
                 try {
                     const parsed = JSON.parse(response.response);
                     
                     if (parsed.function_executed === 'supplier_summary' && parsed.summary) {
-                        console.log('📄 EXTRACTED SUMMARY v3:');
+                        console.log('📄 EXTRACTED SUMMARY:');
                         console.log('────────────────────────────────────────');
                         console.log(parsed.summary);
                         console.log('────────────────────────────────────────');
                         
-                        window.log('Supplier summary generated successfully v3');
+                        window.log('Supplier summary generated successfully (bundle)');
                         
                         return {
                             success: true,
@@ -544,8 +441,8 @@
                         throw new Error('Invalid response format or missing summary field');
                     }
                 } catch (parseError) {
-                    console.error('❌ Failed to parse agent v3 response:', parseError);
-                    window.log('Error parsing supplier summary response v3:', parseError.message);
+                    console.error('❌ Failed to parse agent response:', parseError);
+                    window.log('Error parsing supplier summary response (bundle):', parseError.message);
                     
                     return {
                         success: false,
@@ -554,7 +451,7 @@
                     };
                 }
             } else {
-                console.error('❌ Agent v3 request failed:', response.error);
+                console.error('❌ Agent request failed:', response.error);
                 return {
                     success: false,
                     error: response.error,
@@ -562,8 +459,8 @@
                 };
             }
         } catch (error) {
-            console.error('❌ Error in generateSupplierSummaryWithAgent v3:', error);
-            window.log('Error generating supplier summary v3:', error.message);
+            console.error('❌ Error in generateSupplierSummaryWithAgent:', error);
+            window.log('Error generating supplier summary (bundle):', error.message);
             
             return {
                 success: false,
@@ -572,5 +469,5 @@
         }
     };
     
-    window.log('Bedrock Integration module v3 loaded with multi-function agent support');
+    window.log('Bedrock Integration module loaded with custom bundle support');
 })();
