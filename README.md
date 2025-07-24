@@ -25,6 +25,11 @@ hackathon/
 ├── specification.md             # Complete technical architecture
 ├── implementation-plan.md       # 28 tasks across 7 development phases
 ├── html-interface-analysis.md   # Detailed CQE page structure analysis
+├── bedrock-userscript-bundle/   # Self-contained Bedrock SDK for userscripts ✅
+│   ├── dist/bedrock-agent-runtime.min.js  # Single bundled file (186KB)
+│   ├── src/index.js             # Source wrapper with CQE helpers
+│   ├── example-cqe-integration.user.js    # Example userscript integration
+│   └── test.html                # Bundle verification test
 └── implementation/              # Implementation artifacts (coming next)
 ```
 
@@ -36,6 +41,7 @@ hackathon/
 - **Technical Architecture**: Greasemonkey + Strands SDK + Internal APIs integration
 - **Implementation Planning**: 28 specific tasks with acceptance criteria
 - **HTML Interface Analysis**: Complete analysis of actual CQE page structure and integration points
+- **Bedrock SDK Bundle**: Self-contained 186KB bundle ready for userscript integration
 
 ### Ready for Implementation 🚀
 - **Integration Strategy**: Confirmed dropdown menu modification approach in product table

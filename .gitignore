@@ -1,2 +1,13 @@
 implementation/cqe-alternates-enhancement.user.js
 bedrock-agent-poc
+bedrock-bundle-simple
+bedrock-agent-bundle
+bedrock-userscript-bundle/node_modules
+bedrock-userscript-bundle/src
+bedrock-userscript-bundle/.gitignore
+bedrock-userscript-bundle/README.md
+bedrock-userscript-bundle/example-cqe-integration.user.js
+bedrock-userscript-bundle/package-lock.json
+bedrock-userscript-bundle/package.json
+bedrock-userscript-bundle/test.html
+bedrock-userscript-bundle/webpack.config.js
