@@ -528,26 +528,27 @@
         }
     };
     
-    // Global functions for remove buttons (called from HTML onclick)
-    window.cqeRemoveSelectedAlternate = function(asin) {
-        window.log('Removing selected alternate:', asin);
-        if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin)) {
-            window.UI_COMPONENTS.selectedAlternates.delete(asin);
-            // Re-initialize to update display
-            window.UI_COMPONENTS.initializeModalFunctionality();
-            window.log('Selected alternate removed:', asin);
-        }
-    };
-    
-    window.cqeRemoveManualASIN = function(asin) {
-        window.log('Removing manual ASIN:', asin);
-        if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin)) {
-            window.UI_COMPONENTS.manualAsins.delete(asin);
-            // Re-initialize to update display
-            window.UI_COMPONENTS.initializeModalFunctionality();
-            window.log('Manual ASIN removed:', asin);
-        }
-    };
-    
     window.log('UI Components module loaded');
 })();
+
+// Global functions for remove buttons (called from HTML onclick)
+// These MUST be outside the IIFE to be accessible globally
+window.cqeRemoveSelectedAlternate = function(asin) {
+    window.log('Removing selected alternate:', asin);
+    if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin)) {
+        window.UI_COMPONENTS.selectedAlternates.delete(asin);
+        // Re-initialize to update display
+        window.UI_COMPONENTS.initializeModalFunctionality();
+        window.log('Selected alternate removed:', asin);
+    }
+};
+
+window.cqeRemoveManualASIN = function(asin) {
+    window.log('Removing manual ASIN:', asin);
+    if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin)) {
+        window.UI_COMPONENTS.manualAsins.delete(asin);
+        // Re-initialize to update display
+        window.UI_COMPONENTS.initializeModalFunctionality();
+        window.log('Manual ASIN removed:', asin);
+    }
+};

@@ -39,8 +39,6 @@
                 }
                 
                 const module = moduleFiles[index];
-                console.log(`[CQE Alternates] 🔄 Loading module ${index + 1}/${totalModules}: ${module.name}`);
-                console.log(`[CQE Alternates] 🌐 URL: ${module.url}`);
                 
                 GM_xmlhttpRequest({
                     method: 'GET',
@@ -49,58 +47,96 @@
                         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                     },
                     onload: function(response) {
-                        console.log(`[CQE Alternates] 📥 Response for ${module.name}:`, {
-                            status: response.status,
-                            statusText: response.statusText,
-                            responseLength: response.responseText ? response.responseText.length : 0,
-                            contentType: response.responseHeaders
-                        });
-                        
                         if (response.status === 200 && response.responseText) {
                             try {
-                                // Execute the module code
-                                console.log(`[CQE Alternates] 🔧 Executing ${module.name}...`);
-                                
                                 // Strip IIFE wrapper to allow global scope execution
                                 let moduleCode = response.responseText;
                                 
-                                // Remove the outer IIFE wrapper: (function() { 'use strict'; ... })();
+                                // More careful IIFE wrapper removal that preserves global assignments
                                 const iifePattern = /^\s*\(function\(\)\s*\{\s*['"]use strict['"];\s*([\s\S]*)\s*\}\)\(\);\s*$/;
                                 const match = moduleCode.match(iifePattern);
                                 
                                 if (match) {
-                                    moduleCode = match[1]; // Extract the inner code
-                                    console.log(`[CQE Alternates] 🔧 Stripped IIFE wrapper from ${module.name}`);
+                                    // Extract the inner code but be more careful about global assignments
+                                    let innerCode = match[1];
+                                    
+                                    // For ui-components.js, let's be extra careful
+                                    if (module.name === 'ui-components.js') {
+                                        console.log('[CQE Alternates] 🔍 Processing ui-components.js for global functions');
+                                        
+                                        // Look for the global function assignments at the end
+                                        const lines = innerCode.split('\n');
+                                        let globalFunctionStart = -1;
+                                        
+                                        // Find where global functions start
+                                        for (let i = lines.length - 1; i >= 0; i--) {
+                                            if (lines[i].includes('window.cqeRemove') || lines[i].includes('// Global functions')) {
+                                                globalFunctionStart = i;
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if (globalFunctionStart !== -1) {
+                                            const mainCode = lines.slice(0, globalFunctionStart).join('\n');
+                                            const globalCode = lines.slice(globalFunctionStart).join('\n');
+                                            moduleCode = mainCode + '\n\n' + globalCode;
+                                            console.log('[CQE Alternates] ✅ Preserved global functions for ui-components.js');
+                                        } else {
+                                            moduleCode = innerCode;
+                                            console.log('[CQE Alternates] ⚠️ Could not find global functions in ui-components.js');
+                                        }
+                                    } else {
+                                        // For other modules, use simpler approach
+                                        moduleCode = innerCode;
+                                    }
                                 } else {
-                                    console.log(`[CQE Alternates] ⚠️ No IIFE wrapper found in ${module.name}, executing as-is`);
+                                    console.log(`[CQE Alternates] ⚠️ No IIFE wrapper found in ${module.name}`);
                                 }
                                 
-                                // Execute the code in global scope using eval (safer than Function for this use case)
+                                // Execute the code in global scope
                                 eval(moduleCode);
                                 
-                                // Debug: Check what window objects were created
-                                console.log(`[CQE Alternates] 🔍 After executing ${module.name}, checking window objects:`);
-                                const windowObjects = {
-                                    CQE_SELECTORS: !!window.CQE_SELECTORS,
-                                    ASIN_VALIDATION: !!window.ASIN_VALIDATION,
-                                    MODAL_SYSTEM: !!window.MODAL_SYSTEM,
-                                    AMAZON_SEARCH_MODULE: !!window.AMAZON_SEARCH_MODULE,
-                                    BEDROCK_AGENT_INTEGRATION: !!window.BEDROCK_AGENT_INTEGRATION,
-                                    UI_COMPONENTS: !!window.UI_COMPONENTS,
-                                    CQE_MAIN: !!window.CQE_MAIN,
-                                    log: !!window.log
-                                };
-                                console.log(`[CQE Alternates] 📊 Window objects status:`, windowObjects);
-                                
-                                // Also check for any new window properties that might have been added
-                                const newWindowProps = Object.getOwnPropertyNames(window).filter(prop => 
-                                    prop.startsWith('CQE') || prop.startsWith('ASIN') || prop.startsWith('MODAL') || 
-                                    prop.startsWith('AMAZON') || prop.startsWith('BEDROCK') || prop.startsWith('UI')
-                                );
-                                console.log(`[CQE Alternates] 🔎 CQE-related window properties:`, newWindowProps);
+                                // Special check for UI Components global functions
+                                if (module.name === 'ui-components.js') {
+                                    console.log('[CQE Alternates] 🔍 Checking for UI global functions after execution...');
+                                    console.log('[CQE Alternates] window.cqeRemoveManualASIN:', typeof window.cqeRemoveManualASIN);
+                                    console.log('[CQE Alternates] window.cqeRemoveSelectedAlternate:', typeof window.cqeRemoveSelectedAlternate);
+                                    
+                                    if (!window.cqeRemoveManualASIN || !window.cqeRemoveSelectedAlternate) {
+                                        console.error(`[CQE Alternates] ❌ Missing UI global functions! This will cause remove button errors.`);
+                                        
+                                        // Try to manually create them from the UI_COMPONENTS module
+                                        if (window.UI_COMPONENTS) {
+                                            console.log('[CQE Alternates] 🔧 Attempting to create global functions from UI_COMPONENTS...');
+                                            
+                                            window.cqeRemoveManualASIN = function(asin) {
+                                                console.log('[CQE Alternates] Manual global function: Removing manual ASIN:', asin);
+                                                if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin)) {
+                                                    window.UI_COMPONENTS.manualAsins.delete(asin);
+                                                    if (window.UI_COMPONENTS.initializeModalFunctionality) {
+                                                        window.UI_COMPONENTS.initializeModalFunctionality();
+                                                    }
+                                                }
+                                            };
+                                            
+                                            window.cqeRemoveSelectedAlternate = function(asin) {
+                                                console.log('[CQE Alternates] Manual global function: Removing selected alternate:', asin);
+                                                if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin)) {
+                                                    window.UI_COMPONENTS.selectedAlternates.delete(asin);
+                                                    if (window.UI_COMPONENTS.initializeModalFunctionality) {
+                                                        window.UI_COMPONENTS.initializeModalFunctionality();
+                                                    }
+                                                }
+                                            };
+                                            
+                                            console.log('[CQE Alternates] ✅ Manual global functions created');
+                                        }
+                                    } else {
+                                        console.log('[CQE Alternates] ✅ UI global functions are available');
+                                    }
+                                }
                                 
                                 loadedCount++;
-                                console.log(`[CQE Alternates] ✅ Successfully loaded and executed ${module.name} (${loadedCount}/${totalModules})`);
                                 
                             } catch (error) {
                                 console.error(`[CQE Alternates] ❌ Error executing ${module.name}:`, error);
@@ -143,12 +179,12 @@
     function waitForModules() {
         return new Promise((resolve) => {
             let attempts = 0;
-            const maxAttempts = 50; // 5 seconds max wait
+            const maxAttempts = 20; // Reduced to 2 seconds max wait
             
             const checkModules = () => {
                 attempts++;
                 
-                // Debug: Show which modules are loaded
+                // Check which modules are available
                 const moduleStatus = {
                     CQE_SELECTORS: !!window.CQE_SELECTORS,
                     ASIN_VALIDATION: !!window.ASIN_VALIDATION,
@@ -159,22 +195,21 @@
                     CQE_MAIN: !!window.CQE_MAIN
                 };
                 
-                console.log(`[CQE Alternates] Module loading attempt ${attempts}/${maxAttempts}:`, moduleStatus);
+                const loadedCount = Object.values(moduleStatus).filter(Boolean).length;
+                const totalModules = Object.keys(moduleStatus).length;
                 
-                if (window.CQE_SELECTORS && 
-                    window.ASIN_VALIDATION && 
-                    window.MODAL_SYSTEM && 
-                    window.AMAZON_SEARCH_MODULE && 
-                    window.BEDROCK_AGENT_INTEGRATION && 
-                    window.UI_COMPONENTS && 
-                    window.CQE_MAIN) {
-                    
+                if (loadedCount === totalModules) {
                     console.log('[CQE Alternates] All modules loaded successfully');
                     resolve();
                 } else if (attempts >= maxAttempts) {
-                    console.log('[CQE Alternates] Timeout waiting for modules. Proceeding with available modules.');
+                    console.log(`[CQE Alternates] Module wait timeout. ${loadedCount}/${totalModules} modules available. Proceeding...`);
+                    console.log('[CQE Alternates] Module status:', moduleStatus);
                     resolve();
                 } else {
+                    // Only log every 5 attempts to reduce noise
+                    if (attempts % 5 === 0) {
+                        console.log(`[CQE Alternates] Waiting for modules... ${loadedCount}/${totalModules} loaded`);
+                    }
                     setTimeout(checkModules, 100);
                 }
             };
@@ -212,7 +247,37 @@
                 }
             }
             
-            console.log('[CQE Alternates] CQE Alternates Enhancement initialized using modular approach');
+            // Ensure critical UI functions are available as fallback
+            if (!window.cqeRemoveManualASIN || !window.cqeRemoveSelectedAlternate) {
+                console.log('[CQE Alternates] 🔧 Adding fallback UI functions...');
+                
+                window.cqeRemoveManualASIN = function(asin) {
+                    console.log('[CQE Alternates] Fallback: Removing manual ASIN:', asin);
+                    if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin)) {
+                        window.UI_COMPONENTS.manualAsins.delete(asin);
+                        // Re-initialize to update display
+                        if (window.UI_COMPONENTS.initializeModalFunctionality) {
+                            window.UI_COMPONENTS.initializeModalFunctionality();
+                        }
+                        console.log('[CQE Alternates] Fallback: Manual ASIN removed:', asin);
+                    }
+                };
+                
+                window.cqeRemoveSelectedAlternate = function(asin) {
+                    console.log('[CQE Alternates] Fallback: Removing selected alternate:', asin);
+                    if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin)) {
+                        window.UI_COMPONENTS.selectedAlternates.delete(asin);
+                        // Re-initialize to update display
+                        if (window.UI_COMPONENTS.initializeModalFunctionality) {
+                            window.UI_COMPONENTS.initializeModalFunctionality();
+                        }
+                        console.log('[CQE Alternates] Fallback: Selected alternate removed:', asin);
+                    }
+                };
+                
+                console.log('[CQE Alternates] ✅ Fallback UI functions added');
+            }
+            
             
         } catch (error) {
             console.log('[CQE Alternates] Error during initialization:', error);

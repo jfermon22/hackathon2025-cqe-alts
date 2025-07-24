@@ -507,10 +507,8 @@
                     childList: true,
                     subtree: true
                 });
-                window.log('Started observing for form changes');
             }
             
-            window.log('CQE Alternates Enhancement initialized successfully');
         }
     };
 
