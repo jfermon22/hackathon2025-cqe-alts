@@ -18,6 +18,11 @@
             try {
                 window.log('API Request:', jsonInput.function);
                 
+                // Validate API key is configured
+                if (!config.apiKey || config.apiKey === 'YOUR_API_KEY_HERE') {
+                    throw new Error('API key not configured. Please set your API key in cqe-config.js');
+                }
+                
                 // Create AbortController for timeout
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), config.timeout);
@@ -25,7 +30,8 @@
                 const response = await fetch(config.apiEndpoint, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-API-Key': config.apiKey
                     },
                     body: JSON.stringify(jsonInput),
                     signal: controller.signal
@@ -129,8 +135,19 @@
                         return {
                             success: false,
                             error: 'Authentication failed',
-                            response: 'I\'m having trouble authenticating with the AI service. Please check the API endpoint configuration.',
+                            response: 'I\'m having trouble authenticating with the AI service. Please check that your API key is correctly set in cqe-config.js and that it\'s valid.',
                             authError: true
+                        };
+                    }
+                    
+                    // Check for API key configuration errors
+                    if (error.message.includes('API key not configured')) {
+                        window.log('API key configuration error - not retrying');
+                        return {
+                            success: false,
+                            error: 'API key not configured',
+                            response: 'Please set your API key in the cqe-config.js file. You can get your API key from the AWS Console after deploying the Bedrock API.',
+                            configError: true
                         };
                     }
                     
