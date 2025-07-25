@@ -715,8 +715,8 @@
                     // Fetch product info asynchronously
                     try {
                         const productInfo = await this.fetchProductInfoFromASIN(value);
-                        const truncatedName = productInfo.name.length > 25 ? 
-                            productInfo.name.substring(0, 25) + '...' : 
+                        const truncatedName = productInfo.name.length > 50 ? 
+                            productInfo.name.substring(0, 50) + '...' : 
                             productInfo.name;
                         
                         // Update the tile with fetched info
@@ -726,9 +726,11 @@
                                 `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
                             }
                             <div style="flex: 1; min-width: 0;">
-                                <div style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</div>
-                                <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; margin-top: 4px; background-color: #fff3cd; color: #856404; display: inline-block;">Customer Supplied</div>
-                                <div style="font-size: 0.8rem; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${productInfo.name}">${truncatedName}</div>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <span style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</span>
+                                    <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; background-color: #fff3cd; color: #856404;">Customer Supplied</span>
+                                </div>
+                                <div style="font-size: 0.8rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${productInfo.name}">${truncatedName}</div>
                             </div>
                             <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
                         `;
@@ -737,9 +739,11 @@
                         li.innerHTML = `
                             <div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>
                             <div style="flex: 1; min-width: 0;">
-                                <div style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</div>
-                                <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; margin-top: 4px; background-color: #fff3cd; color: #856404; display: inline-block;">Customer Supplied</div>
-                                <div style="font-size: 0.8rem; color: #666; margin-top: 2px;">Product info unavailable</div>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <span style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</span>
+                                    <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; background-color: #fff3cd; color: #856404;">Customer Supplied</span>
+                                </div>
+                                <div style="font-size: 0.8rem; color: #666;">Product info unavailable</div>
                             </div>
                             <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
                         `;
@@ -749,8 +753,8 @@
                 // Add selected alternates with enhanced tiles
                 this.selectedAlternates.forEach(asin => {
                     const product = mockProducts.find(p => p.asin === asin);
-                    const truncatedName = product && product.name && product.name.length > 25 ? 
-                        product.name.substring(0, 25) + '...' : 
+                    const truncatedName = product && product.name && product.name.length > 50 ? 
+                        product.name.substring(0, 50) + '...' : 
                         (product?.name || asin);
                     
                     const li = document.createElement('li');
@@ -762,9 +766,11 @@
                             `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
                         }
                         <div style="flex: 1; min-width: 0;">
-                            <div style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${asin}</div>
-                            <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; margin-top: 4px; background-color: #d4edda; color: #155724; display: inline-block;">Amazon Suggested</div>
-                            <div style="font-size: 0.8rem; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${product?.name || asin}">${truncatedName}</div>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <span style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${asin}</span>
+                                <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; background-color: #d4edda; color: #155724;">Amazon Suggested</span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${product?.name || asin}">${truncatedName}</div>
                         </div>
                         <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
                     `;
