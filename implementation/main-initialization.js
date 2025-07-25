@@ -180,11 +180,54 @@
         },
 
         // Handle "Add Alternates" button click
-        handleAddAlternatesClick: function(event) {
+        handleAddAlternatesClick: function(event, productData = null) {
             event.preventDefault();
             window.log('🎯 Add Alternates button clicked!');
             
-            // Try to get ASIN from input field
+            // If productData is provided (from table button), use it directly
+            if (productData) {
+                window.log('Using product data from table row:', productData);
+                
+                // Validate that we have essential data
+                if (!productData.asin) {
+                    alert('Could not extract ASIN from this product row. Please try again or contact support.');
+                    return;
+                }
+                
+                // Open modal interface with table product data
+                if (window.MODAL_SYSTEM) {
+                    window.MODAL_SYSTEM.openModal(productData);
+                    
+                    // Initialize modal functionality after opening
+                    if (window.UI_COMPONENTS) {
+                        setTimeout(() => {
+                            // Check functions right before modal initialization
+                            console.log('[CQE Alternates] 🔍 Function check before modal init:', {
+                                'cqeRemoveManualASIN': typeof window.cqeRemoveManualASIN,
+                                'cqeRemoveSelectedAlternate': typeof window.cqeRemoveSelectedAlternate
+                            });
+                            
+                            // Ensure functions exist before initializing
+                            if (window.ensureCQEGlobalFunctions) {
+                                window.ensureCQEGlobalFunctions();
+                            }
+                            
+                            window.UI_COMPONENTS.initializeModalFunctionality();
+                            
+                            // Check functions right after modal initialization
+                            setTimeout(() => {
+                                console.log('[CQE Alternates] 🔍 Function check after modal init:', {
+                                    'cqeRemoveManualASIN': typeof window.cqeRemoveManualASIN,
+                                    'cqeRemoveSelectedAlternate': typeof window.cqeRemoveSelectedAlternate
+                                });
+                            }, 50);
+                        }, 100);
+                    }
+                }
+                return;
+            }
+            
+            // Legacy behavior: Try to get ASIN from input field (for backward compatibility)
             const asinInput = document.querySelector('#add-asin-or-isbn-form') || 
                              document.querySelector('input[type="text"]');
             
@@ -220,7 +263,7 @@
             const quantity = qtyInput?.value || '';
             
             // Create product data object with real customer data
-            const productData = {
+            const legacyProductData = {
                 id: 'input-' + Date.now(),
                 asin: asin,
                 name: asin, // Use ASIN as name since we don't have product name from input
@@ -228,11 +271,11 @@
                 source: 'asin-input'
             };
             
-            window.log('Opening modal with customer product data:', productData);
+            window.log('Opening modal with legacy input product data:', legacyProductData);
             
             // Open modal interface
             if (window.MODAL_SYSTEM) {
-                window.MODAL_SYSTEM.openModal(productData);
+                window.MODAL_SYSTEM.openModal(legacyProductData);
                 
                 // Initialize modal functionality after opening
                 if (window.UI_COMPONENTS) {
@@ -321,7 +364,66 @@
             }
         },
 
-        // Add "Add Alternates" button near the ASIN input form
+        // Add "Add Alternates" buttons to the product table
+        addAlternatesButtonsToTable: function() {
+            const productTable = document.querySelector(window.CQE_SELECTORS ? window.CQE_SELECTORS.productTable : '.ink_Table_1smr14t0.ink_Table_1smr14t1');
+            if (!productTable) {
+                window.log('Product table not found, cannot add alternates buttons');
+                return;
+            }
+
+            // Add Actions column header if it doesn't exist
+            const tableHeader = productTable.querySelector('thead tr');
+            if (tableHeader && !tableHeader.querySelector('.cqe-actions-column')) {
+                const actionsHeader = document.createElement('th');
+                actionsHeader.className = 'ink_Table_1smr14t3 ink_focusRing_13vqdtd3 ink_Table_1smr14t7 ink_Table_1smr14t5 ink_Table_1smr14t2 cqe-actions-column';
+                actionsHeader.setAttribute('role', 'columnheader');
+                actionsHeader.setAttribute('tabindex', '-1');
+                actionsHeader.innerHTML = '<span class="b-ml-small">Actions</span>';
+                tableHeader.appendChild(actionsHeader);
+                window.log('Added Actions column header to table');
+            }
+
+            // Add buttons to each product row
+            const productRows = productTable.querySelectorAll(window.CQE_SELECTORS ? window.CQE_SELECTORS.productRows : 'tbody tr[data-key]');
+            productRows.forEach((row, index) => {
+                // Skip if button already exists in this row
+                if (row.querySelector('.cqe-add-alternates-btn')) {
+                    return;
+                }
+
+                // Extract product data from the row
+                const productData = this.extractProductData(row);
+                if (!productData) {
+                    window.log('Could not extract product data from row, skipping');
+                    return;
+                }
+
+                // Create the actions cell
+                const actionsCell = document.createElement('td');
+                actionsCell.className = 'ink_Table_1smr14t3 ink_focusRing_13vqdtd3 ink_Table_1smr14t7 ink_Table_1smr14t5';
+                actionsCell.setAttribute('role', 'rowheader');
+                actionsCell.setAttribute('tabindex', '-1');
+
+                // Create the Add Alternates button
+                const alternatesButton = document.createElement('button');
+                alternatesButton.id = `cqe-add-alternates-btn-${productData.id}`;
+                alternatesButton.type = 'button';
+                alternatesButton.className = 'b-button cqe-add-alternates-btn';
+                alternatesButton.textContent = 'Add Alternates';
+                alternatesButton.style.cssText = 'margin: 0.25rem; padding: 6px 12px; font-size: 0.85rem;';
+
+                // Add click handler with product data
+                alternatesButton.addEventListener('click', (e) => this.handleAddAlternatesClick(e, productData));
+
+                actionsCell.appendChild(alternatesButton);
+                row.appendChild(actionsCell);
+
+                window.log(`Added alternates button to row ${index + 1} for product:`, productData.name);
+            });
+        },
+
+        // Legacy function for backward compatibility - now redirects to table-based approach
         addAlternatesButton: function() {
             // Check if button already exists
             const existingButton = document.querySelector('#cqe-add-alternates-btn');
@@ -472,10 +574,10 @@
                 window.MODAL_SYSTEM.addSpinnerCSS();
             }
             
-            // Add button near ASIN input
-            this.addAlternatesButton();
+            // Add buttons to product table
+            this.addAlternatesButtonsToTable();
             
-            // Watch for changes to the form area in case it's dynamically loaded
+            // Watch for changes to the table area in case it's dynamically loaded
             const observer = new MutationObserver((mutations) => {
                 let shouldUpdate = false;
                 
@@ -483,15 +585,22 @@
                     if (mutation.type === 'childList') {
                         mutation.addedNodes.forEach((node) => {
                             if (node.nodeType === Node.ELEMENT_NODE) {
-                                // Check if ASIN input was added
+                                // Check if product table was added or updated
                                 if (node.matches && (
-                                    node.matches('#add-asin-or-isbn-form') ||
-                                    node.querySelector && node.querySelector('#add-asin-or-isbn-form')
+                                    node.matches('.ink_Table_1smr14t0.ink_Table_1smr14t1') ||
+                                    node.querySelector && node.querySelector('.ink_Table_1smr14t0.ink_Table_1smr14t1')
                                 )) {
                                     shouldUpdate = true;
                                 }
-                                // Or if the form container was updated
-                                if (node.querySelector && node.querySelector('input, button')) {
+                                // Or if product rows were added
+                                if (node.matches && (
+                                    node.matches('tbody tr[data-key]') ||
+                                    node.querySelector && node.querySelector('tbody tr[data-key]')
+                                )) {
+                                    shouldUpdate = true;
+                                }
+                                // Or if the table container was updated
+                                if (node.querySelector && node.querySelector('table, tbody, tr[data-key]')) {
                                     shouldUpdate = true;
                                 }
                             }
@@ -500,8 +609,8 @@
                 });
                 
                 if (shouldUpdate) {
-                    window.log('Form area updated, checking for button...');
-                    setTimeout(() => this.addAlternatesButton(), 100); // Small delay to ensure DOM is ready
+                    window.log('Product table updated, adding alternates buttons...');
+                    setTimeout(() => this.addAlternatesButtonsToTable(), 100); // Small delay to ensure DOM is ready
                 }
             });
             

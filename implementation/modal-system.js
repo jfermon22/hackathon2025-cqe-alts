@@ -613,17 +613,36 @@
                 window.log('Original ASIN set for validation:', window.UI_COMPONENTS.originalAsin);
             }
             
-            // Update product context
+            // Update product context with enhanced display
             const contextDiv = document.querySelector('#cqe-product-context');
             if (contextDiv && productData) {
                 let contextHTML = '';
                 
-                if (productData.asin) {
-                    contextHTML += `<strong>ASIN:</strong> ${productData.asin}`;
-                }
-                
-                if (productData.quantity) {
-                    contextHTML += ` | <strong>Quantity:</strong> ${productData.quantity}`;
+                // Check if we have image and name (from table row)
+                if (productData.image && productData.name && productData.name !== 'Unknown Product' && productData.name !== productData.asin) {
+                    // Enhanced display with image and product info
+                    contextHTML = `
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <img src="${productData.image}" alt="${productData.name}" 
+                                 style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;">
+                            <div>
+                                <div style="font-weight: 600; margin-bottom: 4px; color: #232f3e;">${productData.name}</div>
+                                <div style="font-size: 0.9rem; color: #666;">
+                                    <strong>ASIN:</strong> ${productData.asin}
+                                    ${productData.quantity ? ` | <strong>Quantity:</strong> ${productData.quantity}` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Fallback to simple display (legacy behavior)
+                    if (productData.asin) {
+                        contextHTML += `<strong>ASIN:</strong> ${productData.asin}`;
+                    }
+                    
+                    if (productData.quantity) {
+                        contextHTML += ` | <strong>Quantity:</strong> ${productData.quantity}`;
+                    }
                 }
                 
                 contextDiv.innerHTML = contextHTML;
