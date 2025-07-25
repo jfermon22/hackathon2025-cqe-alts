@@ -388,6 +388,10 @@
             if (!this.manualAsins) this.manualAsins = new Set();
             if (!this.selectedAlternates) this.selectedAlternates = new Set();
             
+            // Add product info cache and tracking for incremental updates
+            if (!this.productInfoCache) this.productInfoCache = new Map();
+            if (!this.displayedAsins) this.displayedAsins = new Set();
+            
             // Constants
             const ASIN_REGEX = window.ASIN_CONFIG ? window.ASIN_CONFIG.UI_REGEX : /^[A-Z0-9]{10}$/i;
             const MAX_ALTERNATES = window.UI_CONSTANTS ? window.UI_CONSTANTS.MAX_ALTERNATES : 3;
@@ -684,98 +688,147 @@
                 return true;
             };
 
-            // Update the consolidated alternates display with enhanced tiles
+            // Helper function to create ASIN tile HTML
+            const createAsinTileHTML = (asin, productInfo, isManual = true) => {
+                const truncatedName = productInfo.name.length > 50 ? 
+                    productInfo.name.substring(0, 50) + '...' : 
+                    productInfo.name;
+                
+                const badgeClass = isManual ? 'background-color: #fff3cd; color: #856404;' : 'background-color: #d4edda; color: #155724;';
+                const badgeText = isManual ? 'Customer Supplied' : 'Amazon Suggested';
+                
+                return `
+                    ${productInfo.image ? 
+                        `<img src="${productInfo.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="${productInfo.name}">` :
+                        `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
+                    }
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                            <span class="asin-text" style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${asin}</span>
+                            <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; ${badgeClass}">${badgeText}</span>
+                        </div>
+                        <div style="font-size: 0.8rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${productInfo.name}">${truncatedName}</div>
+                    </div>
+                    <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
+                `;
+            };
+
+            // Helper function to create loading tile HTML
+            const createLoadingTileHTML = (asin, isManual = true) => {
+                const badgeClass = isManual ? 'background-color: #fff3cd; color: #856404;' : 'background-color: #d4edda; color: #155724;';
+                const badgeText = isManual ? 'Customer Supplied' : 'Amazon Suggested';
+                
+                return `
+                    <div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">
+                        <div style="width: 16px; height: 16px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                            <span class="asin-text" style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${asin}</span>
+                            <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; ${badgeClass}">${badgeText}</span>
+                        </div>
+                        <div style="font-size: 0.8rem; color: #666;">Loading product info...</div>
+                    </div>
+                    <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
+                `;
+            };
+
+            // Update the consolidated alternates display with intelligent caching and incremental updates
             const updateSelectedAlternatesDisplay = async () => {
                 if (!selectedAlternatesDisplay || !asinList) return;
                 
                 // Always show the section since we have the input field there
                 selectedAlternatesDisplay.style.display = 'block';
-                asinList.innerHTML = '';
                 
-                // Add manual ASINs first with enhanced tiles
-                for (const value of this.manualAsins) {
-                    const li = document.createElement('li');
-                    li.className = 'manual-entry';
-                    li.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px; background-color: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef; border-left: 4px solid #ff9900; margin-bottom: 8px;';
-                    
-                    // Show loading state initially
-                    li.innerHTML = `
-                        <div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">
-                            <div style="width: 16px; height: 16px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                        </div>
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</div>
-                            <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; margin-top: 4px; background-color: #fff3cd; color: #856404; display: inline-block;">Customer Supplied</div>
-                            <div style="font-size: 0.8rem; color: #666; margin-top: 2px;">Loading product info...</div>
-                        </div>
-                        <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
-                    `;
-                    asinList.appendChild(li);
-                    
-                    // Fetch product info asynchronously
-                    try {
-                        const productInfo = await this.fetchProductInfoFromASIN(value);
-                        const truncatedName = productInfo.name.length > 50 ? 
-                            productInfo.name.substring(0, 50) + '...' : 
-                            productInfo.name;
-                        
-                        // Update the tile with fetched info
-                        li.innerHTML = `
-                            ${productInfo.image ? 
-                                `<img src="${productInfo.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="${productInfo.name}">` :
-                                `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
-                            }
-                            <div style="flex: 1; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                    <span style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</span>
-                                    <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; background-color: #fff3cd; color: #856404;">Customer Supplied</span>
-                                </div>
-                                <div style="font-size: 0.8rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${productInfo.name}">${truncatedName}</div>
-                            </div>
-                            <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
-                        `;
-                    } catch (error) {
-                        // Update with error state
-                        li.innerHTML = `
-                            <div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>
-                            <div style="flex: 1; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                    <span style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</span>
-                                    <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; background-color: #fff3cd; color: #856404;">Customer Supplied</span>
-                                </div>
-                                <div style="font-size: 0.8rem; color: #666;">Product info unavailable</div>
-                            </div>
-                            <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
-                        `;
+                // Get current ASINs that should be displayed
+                const currentAsins = new Set([...this.manualAsins, ...this.selectedAlternates]);
+                
+                // Find ASINs to add (new ones not currently displayed)
+                const asinsToAdd = new Set([...currentAsins].filter(asin => !this.displayedAsins.has(asin)));
+                
+                // Find ASINs to remove (currently displayed but no longer needed)
+                const asinsToRemove = new Set([...this.displayedAsins].filter(asin => !currentAsins.has(asin)));
+                
+                window.log(`🔄 Incremental update: Adding ${asinsToAdd.size}, Removing ${asinsToRemove.size}, Cached ${this.productInfoCache.size}`);
+                
+                // Remove ASINs that are no longer needed
+                asinsToRemove.forEach(asin => {
+                    const existingTile = asinList.querySelector(`li .asin-text[textContent="${asin}"]`)?.closest('li');
+                    if (existingTile) {
+                        existingTile.remove();
+                        window.log(`🗑️ Removed tile for ${asin}`);
                     }
+                    this.displayedAsins.delete(asin);
+                });
+                
+                // Add new ASINs
+                for (const asin of asinsToAdd) {
+                    const isManual = this.manualAsins.has(asin);
+                    const li = document.createElement('li');
+                    li.className = isManual ? 'manual-entry' : 'selected-alternate';
+                    li.style.cssText = `display: flex; align-items: center; gap: 12px; padding: 12px; background-color: ${isManual ? '#f8f9fa' : '#f8fff9'}; border-radius: 6px; border: 1px solid #e9ecef; border-left: 4px solid ${isManual ? '#ff9900' : '#28a745'}; margin-bottom: 8px;`;
+                    
+                    // Check if we have cached product info
+                    if (this.productInfoCache.has(asin)) {
+                        // Use cached data immediately - no loading state needed
+                        const cachedInfo = this.productInfoCache.get(asin);
+                        li.innerHTML = createAsinTileHTML(asin, cachedInfo, isManual);
+                        window.log(`⚡ Used cached data for ${asin}`);
+                    } else {
+                        // Show loading state for new ASINs only
+                        li.innerHTML = createLoadingTileHTML(asin, isManual);
+                        window.log(`🔄 Loading new ASIN ${asin}`);
+                        
+                        // Fetch product info asynchronously for manual ASINs
+                        if (isManual) {
+                            this.fetchProductInfoFromASIN(asin).then(productInfo => {
+                                // Cache the result
+                                this.productInfoCache.set(asin, productInfo);
+                                
+                                // Update the tile with fetched info
+                                li.innerHTML = createAsinTileHTML(asin, productInfo, isManual);
+                                window.log(`✅ Updated tile for ${asin} with fetched data`);
+                            }).catch(error => {
+                                // Cache error state
+                                const errorInfo = { asin, name: asin, image: '' };
+                                this.productInfoCache.set(asin, errorInfo);
+                                
+                                // Update with error state
+                                li.innerHTML = createAsinTileHTML(asin, errorInfo, isManual);
+                                window.log(`❌ Updated tile for ${asin} with error state`);
+                            });
+                        } else {
+                            // For selected alternates, use mock data immediately
+                            const product = mockProducts.find(p => p.asin === asin);
+                            const productInfo = product || { asin, name: asin, image: '' };
+                            
+                            // Cache the mock data
+                            this.productInfoCache.set(asin, productInfo);
+                            
+                            // Update immediately
+                            li.innerHTML = createAsinTileHTML(asin, productInfo, isManual);
+                            window.log(`📦 Used mock data for ${asin}`);
+                        }
+                    }
+                    
+                    // Insert in correct position (manual ASINs first, then selected alternates)
+                    if (isManual) {
+                        // Find the last manual entry or insert at beginning
+                        const lastManualEntry = asinList.querySelector('li.manual-entry:last-of-type');
+                        if (lastManualEntry) {
+                            lastManualEntry.insertAdjacentElement('afterend', li);
+                        } else {
+                            asinList.insertAdjacentElement('afterbegin', li);
+                        }
+                    } else {
+                        // Append selected alternates at the end
+                        asinList.appendChild(li);
+                    }
+                    
+                    this.displayedAsins.add(asin);
                 }
                 
-                // Add selected alternates with enhanced tiles
-                this.selectedAlternates.forEach(asin => {
-                    const product = mockProducts.find(p => p.asin === asin);
-                    const truncatedName = product && product.name && product.name.length > 50 ? 
-                        product.name.substring(0, 50) + '...' : 
-                        (product?.name || asin);
-                    
-                    const li = document.createElement('li');
-                    li.className = 'selected-alternate';
-                    li.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px; background-color: #f8fff9; border-radius: 6px; border: 1px solid #e9ecef; border-left: 4px solid #28a745; margin-bottom: 8px;';
-                    li.innerHTML = `
-                        ${product && product.image ? 
-                            `<img src="${product.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="${product.name}">` :
-                            `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
-                        }
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                <span style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${asin}</span>
-                                <span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; background-color: #d4edda; color: #155724;">Amazon Suggested</span>
-                            </div>
-                            <div style="font-size: 0.8rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${product?.name || asin}">${truncatedName}</div>
-                        </div>
-                        <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
-                    `;
-                    asinList.appendChild(li);
-                });
+                window.log(`✅ Display updated: ${this.displayedAsins.size} ASINs displayed, ${this.productInfoCache.size} cached`);
             };
 
             // Generate and display suggested alternates using multi-function agent
