@@ -24,7 +24,7 @@
             if (!this.selectedAlternates) this.selectedAlternates = new Set();
             
             // Constants
-            const ASIN_REGEX = /^[A-Z0-9]{10}$/i;
+            const ASIN_REGEX = window.ASIN_CONFIG ? window.ASIN_CONFIG.UI_REGEX : /^[A-Z0-9]{10}$/i;
             const MAX_ALTERNATES = window.UI_CONSTANTS ? window.UI_CONSTANTS.MAX_ALTERNATES : 3;
             
             // DOM elements

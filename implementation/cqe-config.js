@@ -20,14 +20,12 @@
         pageHeader: '#cqe_quote_request_a_quote_header'
     };
     
-    // Bedrock Agent Configuration
-    window.BEDROCK_CONFIG = {
-        region: 'us-west-2',
-        agentId: 'CAP1I3RZLN',
-        agentAliasId: 'CAP1I3RZLN',
-        timeout: 30000,
+    // HTTP API Configuration
+    window.API_CONFIG = {
+        apiEndpoint: 'https://dzzzjrtgc8.execute-api.us-west-2.amazonaws.com/invoke-agent',
+        timeout: 30000, // 30 second timeout
         maxRetries: 3,
-        retryDelay: 1000
+        retryDelay: 1000 // 1 second base delay
     };
     
     // Amazon Search Configuration
@@ -38,22 +36,26 @@
         RETRY_ATTEMPTS: 2
     };
     
-    // Analytics Configuration
-    window.ANALYTICS_CONFIG = {
-        STORAGE_KEY: 'cqe_alternates_analytics',
-        CONVERSATION_STORAGE_KEY: 'cqe_alternates_conversation_state',
-        EXPIRY_HOURS: 24
+    // ASIN Validation Configuration
+    window.ASIN_CONFIG = {
+        // Standard ASIN regex pattern - supports both formats:
+        // - 10-digit numeric with optional X: 0123456789, 012345678X
+        // - Letter + 9 alphanumeric: B08N5WRWNW
+        REGEX: /^([0-9]{9}[0-9X]|[A-Z][A-Z0-9]{9})$/,
+        // Simplified regex for UI validation (10 alphanumeric characters)
+        UI_REGEX: /^[A-Z0-9]{10}$/i
     };
     
     // UI Constants
     window.UI_CONSTANTS = {
         MAX_ALTERNATES: 3,
-        ASIN_REGEX: /^([0-9]{9}[0-9X]|[A-Z][A-Z0-9]{9})$/,
+        MODULE_LOAD_TIMEOUT: 10000, // 10 seconds per module
+        MODULE_WAIT_TIMEOUT: 30000, // 30 seconds total wait
         CHARACTER_LIMITS: {
-            intent: 200,
+            customerUsageIntent: 200,
             itemDescription: 200,
-            mustHave: 200,
-            preferred: 200
+            mustHaveAttributes: 200,
+            preferredAttributes: 200
         }
     };
     

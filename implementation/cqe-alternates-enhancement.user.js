@@ -83,7 +83,7 @@
                         // Continue with next module
                         setTimeout(() => loadNextModule(index + 1), 100);
                     },
-                    timeout: 10000 // 10 second timeout per module
+                    timeout: window.UI_CONSTANTS ? window.UI_CONSTANTS.MODULE_LOAD_TIMEOUT : 10000
                 });
             }
             
@@ -94,7 +94,7 @@
             setTimeout(() => {
                 console.log('[CQE Alternates] Module loading timeout, proceeding anyway');
                 resolve();
-            }, 30000); // 30 seconds total
+            }, window.UI_CONSTANTS ? window.UI_CONSTANTS.MODULE_WAIT_TIMEOUT : 30000);
         });
     }
     

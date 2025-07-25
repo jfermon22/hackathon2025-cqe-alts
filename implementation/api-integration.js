@@ -12,13 +12,6 @@
     
     // HTTP API Integration System
     window.API_INTEGRATION = {
-        // Configuration - HTTP API Endpoint
-        CONFIG: {
-            apiEndpoint: 'https://dzzzjrtgc8.execute-api.us-west-2.amazonaws.com/invoke-agent',
-            timeout: 30000, // 30 second timeout
-            maxRetries: 3,
-            retryDelay: 1000 // 1 second base delay
-        },
         
         // Perform the actual HTTP API request
         performRequest: async function(jsonInput, config) {
@@ -107,7 +100,7 @@
         
         // Make HTTP API request with retry logic
         makeRequest: async function(inputData, options = {}) {
-            const config = { ...this.CONFIG, ...options };
+            const config = { ...(window.API_CONFIG || {}), ...options };
             let lastError = null;
             
             for (let attempt = 1; attempt <= config.maxRetries; attempt++) {

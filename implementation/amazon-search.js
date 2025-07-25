@@ -12,13 +12,6 @@
     
     // Amazon Search Module - Self-contained search functionality
     window.AMAZON_SEARCH_MODULE = {
-        // Configuration
-        SEARCH_CONFIG: {
-            MAX_RESULTS: 4,
-            TIMEOUT: 15000, // 15 seconds
-            BASE_URL: 'https://www.amazon.com/s?k=',
-            RETRY_ATTEMPTS: 2
-        },
         
         // Generate search query from user input
         generateSearchQuery: function(itemDescription, mustHave, preferred, intent, productName) {
@@ -131,15 +124,16 @@
                 throw new Error('No search query provided');
             }
             
-            const searchUrl = this.SEARCH_CONFIG.BASE_URL + encodeURIComponent(searchQuery);
+            const searchConfig = window.SEARCH_CONFIG || { BASE_URL: 'https://www.amazon.com/s?k=', RETRY_ATTEMPTS: 2, TIMEOUT: 15000 };
+            const searchUrl = searchConfig.BASE_URL + encodeURIComponent(searchQuery);
             window.log('📄 Fetching search results from:', searchUrl);
             
             let lastError;
             
             // Retry logic
-            for (let attempt = 1; attempt <= this.SEARCH_CONFIG.RETRY_ATTEMPTS; attempt++) {
+            for (let attempt = 1; attempt <= searchConfig.RETRY_ATTEMPTS; attempt++) {
                 try {
-                    window.log(`🔄 Search attempt ${attempt}/${this.SEARCH_CONFIG.RETRY_ATTEMPTS}`);
+                    window.log(`🔄 Search attempt ${attempt}/${searchConfig.RETRY_ATTEMPTS}`);
                     
                     const response = await new Promise((resolve, reject) => {
                         GM_xmlhttpRequest({
@@ -157,7 +151,7 @@
                             onload: resolve,
                             onerror: reject,
                             ontimeout: () => reject(new Error('Request timeout')),
-                            timeout: this.SEARCH_CONFIG.TIMEOUT
+                            timeout: searchConfig.TIMEOUT
                         });
                     });
                     
@@ -172,7 +166,7 @@
                     lastError = error;
                     window.log(`❌ Search attempt ${attempt} failed:`, error.message);
                     
-                    if (attempt < this.SEARCH_CONFIG.RETRY_ATTEMPTS) {
+                    if (attempt < searchConfig.RETRY_ATTEMPTS) {
                         // Wait before retry (exponential backoff)
                         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
                     }
@@ -196,7 +190,8 @@
                 
                 const results = [];
                 
-                for (let i = 0; i < resultItems.length && results.length < this.SEARCH_CONFIG.MAX_RESULTS; i++) {
+                const searchConfig = window.SEARCH_CONFIG || { MAX_RESULTS: 4 };
+                for (let i = 0; i < resultItems.length && results.length < searchConfig.MAX_RESULTS; i++) {
                     const item = resultItems[i];
                     const result = this.extractProductData(item);
                     

@@ -12,8 +12,10 @@
     
     // ASIN validation utilities
     window.ASIN_VALIDATION = {
-        // Standard ASIN regex pattern
-        REGEX: /^([0-9]{9}[0-9X]|[A-Z][A-Z0-9]{9})$/,
+        // Use centralized ASIN regex from config
+        get REGEX() {
+            return window.ASIN_CONFIG ? window.ASIN_CONFIG.REGEX : /^([0-9]{9}[0-9X]|[A-Z][A-Z0-9]{9})$/;
+        },
         
         // Validate ASIN format
         validate: function(asin) {
