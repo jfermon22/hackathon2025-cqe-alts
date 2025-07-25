@@ -22,12 +22,8 @@
         
         // Perform the actual HTTP API request
         performRequest: async function(jsonInput, config) {
-            console.log('🔍 DEBUG: performRequest called with input:', jsonInput);
-            console.log('🔍 DEBUG: Using HTTP API endpoint:', config.apiEndpoint);
-            
             try {
-                console.log('🔍 DEBUG: Making HTTP POST request...');
-                window.log('Making HTTP API request to:', config.apiEndpoint);
+                window.log('API Request:', jsonInput.function);
                 
                 // Create AbortController for timeout
                 const controller = new AbortController();
@@ -45,32 +41,25 @@
                 // Clear timeout since request completed
                 clearTimeout(timeoutId);
                 
-                console.log('🔍 DEBUG: HTTP response status:', response.status, response.statusText);
-                
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const rawResult = await response.text();
-                console.log('🔍 DEBUG: Raw HTTP API response:', rawResult);
                 
                 // Handle response that might be wrapped in markdown code blocks
                 let cleanedResult = rawResult;
                 
                 // Check if response is wrapped in ```json ... ``` blocks
                 if (rawResult.includes('```json')) {
-                    console.log('🔍 DEBUG: Response contains markdown code blocks, extracting JSON...');
                     const jsonMatch = rawResult.match(/```json\s*([\s\S]*?)\s*```/);
                     if (jsonMatch && jsonMatch[1]) {
                         cleanedResult = jsonMatch[1].trim();
-                        console.log('🔍 DEBUG: Extracted JSON from markdown:', cleanedResult);
                     }
                 } else if (rawResult.includes('```')) {
-                    console.log('🔍 DEBUG: Response contains generic code blocks, extracting content...');
                     const codeMatch = rawResult.match(/```\s*([\s\S]*?)\s*```/);
                     if (codeMatch && codeMatch[1]) {
                         cleanedResult = codeMatch[1].trim();
-                        console.log('🔍 DEBUG: Extracted content from code blocks:', cleanedResult);
                     }
                 }
                 
@@ -78,10 +67,9 @@
                 let result;
                 try {
                     result = JSON.parse(cleanedResult);
-                    console.log('🔍 DEBUG: Successfully parsed JSON:', result);
                 } catch (parseError) {
-                    console.log('🔍 DEBUG: Failed to parse as JSON, treating as plain text:', parseError);
-                    console.log('🔍 DEBUG: Raw content that failed to parse:', cleanedResult);
+                    console.error('API JSON parse error:', parseError.message);
+                    console.error('Raw content:', cleanedResult);
                     throw new Error(`Invalid JSON response from API: ${parseError.message}`);
                 }
                 
@@ -98,11 +86,7 @@
                 };
                 
             } catch (error) {
-                console.log('🔍 DEBUG: Error in performRequest:', error);
-                console.log('🔍 DEBUG: Error message:', error.message);
-                console.log('🔍 DEBUG: Error name:', error.name);
-                
-                window.log('HTTP API request error:', error);
+                window.log('API request error:', error.message);
                 
                 // Handle different types of errors
                 if (error.name === 'AbortError') {
@@ -123,23 +107,18 @@
         
         // Make HTTP API request with retry logic
         makeRequest: async function(inputData, options = {}) {
-            console.log('🔍 DEBUG: makeRequest called with input:', inputData);
-            console.log('🔍 DEBUG: makeRequest options:', options);
-            
             const config = { ...this.CONFIG, ...options };
             let lastError = null;
             
             for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
                 try {
-                    console.log(`🔍 DEBUG: HTTP API attempt ${attempt}/${config.maxRetries}`);
-                    window.log(`HTTP API attempt ${attempt}/${config.maxRetries}`);
+                    if (attempt > 1) {
+                        window.log(`API retry attempt ${attempt}/${config.maxRetries}`);
+                    }
                     
-                    console.log('🔍 DEBUG: About to call this.performRequest...');
                     const response = await this.performRequest(inputData, config);
-                    console.log('🔍 DEBUG: performRequest returned:', response);
                     
                     if (response.success) {
-                        window.log('HTTP API request successful');
                         return response;
                     } else {
                         throw new Error(response.error || 'Unknown API error');
@@ -147,14 +126,13 @@
                     
                 } catch (error) {
                     lastError = error;
-                    window.log(`HTTP API attempt ${attempt} failed:`, error.message);
                     
                     // Check for non-retryable errors
                     if (error.message.includes('Authentication failed') || 
                         error.message.includes('API access denied') ||
                         error.message.includes('HTTP 401') || 
                         error.message.includes('HTTP 403')) {
-                        window.log('Authentication error detected, not retrying');
+                        window.log('Authentication error - not retrying');
                         return {
                             success: false,
                             error: 'Authentication failed',
@@ -165,21 +143,19 @@
                     
                     // Don't retry on client errors (4xx except 429)
                     if (error.message.includes('HTTP 4') && !error.message.includes('HTTP 429')) {
-                        window.log('Client error detected, not retrying');
                         break;
                     }
                     
                     // Wait before retry (exponential backoff)
                     if (attempt < config.maxRetries) {
                         const delay = config.retryDelay * Math.pow(2, attempt - 1);
-                        console.log(`🔍 DEBUG: Waiting ${delay}ms before retry...`);
                         await this.sleep(delay);
                     }
                 }
             }
             
             // All retries failed
-            window.log('All HTTP API attempts failed:', lastError);
+            window.log('API request failed after all retries:', lastError.message);
             return {
                 success: false,
                 error: lastError.message || 'HTTP API service unavailable',
@@ -197,9 +173,6 @@
     
     // Generate search term using the HTTP API
     window.generateSearchTermWithAgent = async function(formData) {
-        console.log('🔍 generateSearchTermWithAgent called with:', formData);
-        window.log('Generating search term with HTTP API');
-        
         // Prepare the input object for search term generation
         const agentInput = {
             function: "search_term_generation",
@@ -213,20 +186,15 @@
                 (formData.preferredAttributes || '').split(',').map(s => s.trim()).filter(s => s)
         };
         
-        console.log('📤 RAW INPUT TO API (Search Term Generation):', JSON.stringify(agentInput, null, 2));
-        
         try {
             const response = await window.API_INTEGRATION.makeRequest(agentInput);
             
             if (response.success) {
-                console.log('📥 RAW OUTPUT FROM API (Search Term Generation):', response.response);
-                
                 try {
                     const parsed = JSON.parse(response.response);
                     
                     if (parsed.function_executed === 'search_term_generation' && parsed.search_term) {
-                        console.log('🎯 EXTRACTED SEARCH TERM:', `"${parsed.search_term}"`);
-                        window.log('Search term generated successfully via HTTP API:', parsed.search_term);
+                        window.log('Search term generated:', parsed.search_term);
                         
                         return {
                             success: true,
@@ -238,8 +206,8 @@
                         throw new Error('Invalid response format or missing search_term field');
                     }
                 } catch (parseError) {
-                    console.error('❌ Failed to parse API response:', parseError);
-                    window.log('Error parsing search term response from HTTP API:', parseError.message);
+                    console.error('Failed to parse search term API response:', parseError);
+                    window.log('Error parsing search term response:', parseError.message);
                     
                     return {
                         success: false,
@@ -248,7 +216,7 @@
                     };
                 }
             } else {
-                console.error('❌ API request failed:', response.error);
+                console.error('Search term API request failed:', response.error);
                 return {
                     success: false,
                     error: response.error,
@@ -256,8 +224,8 @@
                 };
             }
         } catch (error) {
-            console.error('❌ Error in generateSearchTermWithAgent:', error);
-            window.log('Error generating search term via HTTP API:', error.message);
+            console.error('Error in generateSearchTermWithAgent:', error);
+            window.log('Error generating search term:', error.message);
             
             return {
                 success: false,
@@ -268,9 +236,6 @@
     
     // Generate supplier summary using the HTTP API
     window.generateSupplierSummaryWithAgent = async function(formData) {
-        console.log('📋 generateSupplierSummaryWithAgent called with:', formData);
-        window.log('Generating supplier summary with HTTP API');
-        
         // Prepare the input object for supplier summary generation
         const agentInput = {
             function: "supplier_summary",
@@ -286,24 +251,15 @@
                 (formData.preferredAttributes || '').split(',').map(s => s.trim()).filter(s => s)
         };
         
-        console.log('📤 RAW INPUT TO API (Supplier Summary):', JSON.stringify(agentInput, null, 2));
-        
         try {
             const response = await window.API_INTEGRATION.makeRequest(agentInput);
             
             if (response.success) {
-                console.log('📥 RAW OUTPUT FROM API (Supplier Summary):', response.response);
-                
                 try {
                     const parsed = JSON.parse(response.response);
                     
                     if (parsed.function_executed === 'supplier_summary' && parsed.summary) {
-                        console.log('📄 EXTRACTED SUMMARY:');
-                        console.log('────────────────────────────────────────');
-                        console.log(parsed.summary);
-                        console.log('────────────────────────────────────────');
-                        
-                        window.log('Supplier summary generated successfully via HTTP API');
+                        window.log('Supplier summary generated successfully');
                         
                         return {
                             success: true,
@@ -315,8 +271,8 @@
                         throw new Error('Invalid response format or missing summary field');
                     }
                 } catch (parseError) {
-                    console.error('❌ Failed to parse API response:', parseError);
-                    window.log('Error parsing supplier summary response from HTTP API:', parseError.message);
+                    console.error('Failed to parse supplier summary API response:', parseError);
+                    window.log('Error parsing supplier summary response:', parseError.message);
                     
                     return {
                         success: false,
@@ -325,7 +281,7 @@
                     };
                 }
             } else {
-                console.error('❌ API request failed:', response.error);
+                console.error('Supplier summary API request failed:', response.error);
                 return {
                     success: false,
                     error: response.error,
@@ -333,8 +289,8 @@
                 };
             }
         } catch (error) {
-            console.error('❌ Error in generateSupplierSummaryWithAgent:', error);
-            window.log('Error generating supplier summary via HTTP API:', error.message);
+            console.error('Error in generateSupplierSummaryWithAgent:', error);
+            window.log('Error generating supplier summary:', error.message);
             
             return {
                 success: false,

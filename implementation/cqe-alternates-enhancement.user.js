@@ -24,8 +24,6 @@
             { url: baseUrl + 'main-initialization.js', name: 'main-initialization.js' }
         ];
         
-        console.log('[CQE Alternates] Loading modules via GM_xmlhttpRequest from GitHub...');
-        
         return new Promise((resolve) => {
             let loadedCount = 0;
             const totalModules = moduleFiles.length;
@@ -33,14 +31,12 @@
             // Load modules sequentially to ensure proper order
             function loadNextModule(index) {
                 if (index >= moduleFiles.length) {
-                    console.log(`[CQE Alternates] All modules processed (${loadedCount}/${totalModules} successful)`);
+                    console.log(`[CQE Alternates] Loaded ${loadedCount}/${totalModules} modules`);
                     resolve();
                     return;
                 }
                 
                 const module = moduleFiles[index];
-                console.log(`[CQE Alternates] 🔄 Loading module ${index + 1}/${totalModules}: ${module.name}`);
-                console.log(`[CQE Alternates] 🌐 URL: ${module.url}`);
                 
                 GM_xmlhttpRequest({
                     method: 'GET',
@@ -49,18 +45,8 @@
                         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                     },
                     onload: function(response) {
-                        console.log(`[CQE Alternates] 📥 Response for ${module.name}:`, {
-                            status: response.status,
-                            statusText: response.statusText,
-                            responseLength: response.responseText ? response.responseText.length : 0,
-                            contentType: response.responseHeaders
-                        });
-                        
                         if (response.status === 200 && response.responseText) {
                             try {
-                                // Execute the module code
-                                console.log(`[CQE Alternates] 🔧 Executing ${module.name}...`);
-                                
                                 // Strip IIFE wrapper to allow global scope execution
                                 let moduleCode = response.responseText;
                                 
@@ -70,57 +56,30 @@
                                 
                                 if (match) {
                                     moduleCode = match[1]; // Extract the inner code
-                                    console.log(`[CQE Alternates] 🔧 Stripped IIFE wrapper from ${module.name}`);
-                                } else {
-                                    console.log(`[CQE Alternates] ⚠️ No IIFE wrapper found in ${module.name}, executing as-is`);
                                 }
                                 
                                 // Execute the code in global scope using eval (safer than Function for this use case)
                                 eval(moduleCode);
                                 
-                                // Debug: Check what window objects were created
-                                console.log(`[CQE Alternates] 🔍 After executing ${module.name}, checking window objects:`);
-                                const windowObjects = {
-                                    CQE_SELECTORS: !!window.CQE_SELECTORS,
-                                    ASIN_VALIDATION: !!window.ASIN_VALIDATION,
-                                    MODAL_SYSTEM: !!window.MODAL_SYSTEM,
-                                    AMAZON_SEARCH_MODULE: !!window.AMAZON_SEARCH_MODULE,
-                                    API_INTEGRATION: !!window.API_INTEGRATION,
-                                    UI_COMPONENTS: !!window.UI_COMPONENTS,
-                                    CQE_MAIN: !!window.CQE_MAIN,
-                                    log: !!window.log
-                                };
-                                console.log(`[CQE Alternates] 📊 Window objects status:`, windowObjects);
-                                
-                                // Also check for any new window properties that might have been added
-                                const newWindowProps = Object.getOwnPropertyNames(window).filter(prop => 
-                                    prop.startsWith('CQE') || prop.startsWith('ASIN') || prop.startsWith('MODAL') || 
-                                    prop.startsWith('AMAZON') || prop.startsWith('BEDROCK') || prop.startsWith('UI')
-                                );
-                                console.log(`[CQE Alternates] 🔎 CQE-related window properties:`, newWindowProps);
-                                
                                 loadedCount++;
-                                console.log(`[CQE Alternates] ✅ Successfully loaded and executed ${module.name} (${loadedCount}/${totalModules})`);
                                 
                             } catch (error) {
-                                console.error(`[CQE Alternates] ❌ Error executing ${module.name}:`, error);
-                                console.error(`[CQE Alternates] 📄 Code preview:`, response.responseText.substring(0, 200) + '...');
+                                console.error(`[CQE Alternates] Error executing ${module.name}:`, error);
                             }
                         } else {
-                            console.error(`[CQE Alternates] ❌ Failed to load ${module.name}: HTTP ${response.status}`);
-                            console.error(`[CQE Alternates] 📄 Response preview:`, response.responseText ? response.responseText.substring(0, 200) + '...' : 'No response text');
+                            console.error(`[CQE Alternates] Failed to load ${module.name}: HTTP ${response.status}`);
                         }
                         
                         // Load next module
                         setTimeout(() => loadNextModule(index + 1), 100);
                     },
                     onerror: function(error) {
-                        console.error(`[CQE Alternates] ❌ Network error loading ${module.name}:`, error);
+                        console.error(`[CQE Alternates] Network error loading ${module.name}:`, error);
                         // Continue with next module
                         setTimeout(() => loadNextModule(index + 1), 100);
                     },
                     ontimeout: function() {
-                        console.error(`[CQE Alternates] ⏰ Timeout loading ${module.name}`);
+                        console.error(`[CQE Alternates] Timeout loading ${module.name}`);
                         // Continue with next module
                         setTimeout(() => loadNextModule(index + 1), 100);
                     },
@@ -133,7 +92,7 @@
             
             // Overall fallback timeout
             setTimeout(() => {
-                console.log('[CQE Alternates] Overall module loading timeout, proceeding anyway');
+                console.log('[CQE Alternates] Module loading timeout, proceeding anyway');
                 resolve();
             }, 30000); // 30 seconds total
         });
@@ -148,19 +107,6 @@
             const checkModules = () => {
                 attempts++;
                 
-                // Debug: Show which modules are loaded
-                const moduleStatus = {
-                    CQE_SELECTORS: !!window.CQE_SELECTORS,
-                    ASIN_VALIDATION: !!window.ASIN_VALIDATION,
-                    MODAL_SYSTEM: !!window.MODAL_SYSTEM,
-                    AMAZON_SEARCH_MODULE: !!window.AMAZON_SEARCH_MODULE,
-                    API_INTEGRATION: !!window.API_INTEGRATION,
-                    UI_COMPONENTS: !!window.UI_COMPONENTS,
-                    CQE_MAIN: !!window.CQE_MAIN
-                };
-                
-                console.log(`[CQE Alternates] Module loading attempt ${attempts}/${maxAttempts}:`, moduleStatus);
-                
                 if (window.CQE_SELECTORS && 
                     window.ASIN_VALIDATION && 
                     window.MODAL_SYSTEM && 
@@ -169,10 +115,10 @@
                     window.UI_COMPONENTS && 
                     window.CQE_MAIN) {
                     
-                    console.log('[CQE Alternates] All modules loaded successfully');
+                    console.log('[CQE Alternates] All modules ready');
                     resolve();
                 } else if (attempts >= maxAttempts) {
-                    console.log('[CQE Alternates] Timeout waiting for modules. Proceeding with available modules.');
+                    console.log('[CQE Alternates] Module timeout - proceeding with available modules');
                     resolve();
                 } else {
                     setTimeout(checkModules, 100);
