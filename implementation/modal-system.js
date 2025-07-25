@@ -417,7 +417,30 @@
                     
                     .cqe-asin-counter.at-limit {
                         color: #dc3545;
-                        font-weight: 600;
+                        font-weight: bold;
+                    }
+                    
+                    /* Error styling for ASIN input (red dotted outline like CQE pattern) */
+                    .cqe-modal-content #cqe-asin-input.is-error {
+                        border: 2px dotted #dc3545 !important;
+                        background-color: #fff5f5 !important;
+                        box-shadow: none !important;
+                    }
+                    
+                    .cqe-modal-content .cqe-error.is-error {
+                        color: #dc3545;
+                        font-size: 0.875rem;
+                        margin-top: 4px;
+                        display: block;
+                        background: none;
+                        border: none;
+                        padding: 0;
+                    }
+                    
+                    /* Ensure error message appears below input */
+                    .cqe-modal-content #cqe-asin-error {
+                        display: none;
+                        margin-top: 4px;
                     }
                     
                     .cqe-limit-warning {

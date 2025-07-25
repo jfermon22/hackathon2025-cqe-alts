@@ -472,14 +472,43 @@
                 });
             };
 
-            // Show error message
+            // Show error message with proper styling (red dotted outline)
             const showError = (message) => {
-                if (!asinError) return;
+                if (!asinError || !asinInput) return;
+                
+                // Add error styling to input field with red dotted border
+                asinInput.classList.add('is-error');
+                asinInput.setAttribute('aria-invalid', 'true');
+                asinInput.setAttribute('aria-describedby', 'cqe-asin-error');
+                asinInput.style.border = '2px dotted #dc3545';
+                asinInput.style.backgroundColor = '#fff5f5';
+                
+                // Show error message below input
                 asinError.textContent = message;
                 asinError.style.display = 'block';
+                asinError.setAttribute('role', 'alert');
+                asinError.classList.add('is-error');
+                
+                // Clear error after 5 seconds
                 setTimeout(() => {
-                    asinError.style.display = 'none';
+                    clearError();
                 }, 5000);
+            };
+            
+            // Clear error styling
+            const clearError = () => {
+                if (asinInput) {
+                    asinInput.classList.remove('is-error');
+                    asinInput.removeAttribute('aria-invalid');
+                    asinInput.removeAttribute('aria-describedby');
+                    asinInput.style.border = '';
+                    asinInput.style.backgroundColor = '';
+                }
+                if (asinError) {
+                    asinError.style.display = 'none';
+                    asinError.classList.remove('is-error');
+                    asinError.textContent = '';
+                }
             };
 
             // Add manual ASIN to the list
@@ -488,15 +517,23 @@
                 
                 const value = asinInput.value.trim().toUpperCase();
                 
-                // Check limit first
-                if (getTotalAlternatesCount() >= MAX_ALTERNATES) {
-                    showError(`Maximum of ${MAX_ALTERNATES} total alternates allowed. Remove some items to add more.`);
+                // Clear any existing errors first
+                clearError();
+                
+                // Validate ASIN format first
+                if (!value) {
+                    showError('ASIN or ISBN required');
                     return false;
                 }
                 
-                // Validate ASIN format
                 if (!ASIN_REGEX.test(value)) {
                     showError('Invalid ASIN format. Must be exactly 10 alphanumeric characters.');
+                    return false;
+                }
+                
+                // Check limit BEFORE other validations to avoid showing limit warning for invalid ASINs
+                if (getTotalAlternatesCount() >= MAX_ALTERNATES) {
+                    showError(`Maximum of ${MAX_ALTERNATES} total alternates allowed. Remove some items to add more.`);
                     return false;
                 }
                 
@@ -512,9 +549,9 @@
                     return false;
                 }
                 
-                // Add to manual ASINs set
+                // If we get here, the ASIN is valid and can be added successfully
+                // No error should be shown for valid ASINs
                 this.manualAsins.add(value);
-                
                 asinInput.value = '';
                 
                 // Update consolidated display and counter
@@ -1011,9 +1048,33 @@
                     }
                 });
 
-                // Auto-format ASIN input to uppercase
+                // Auto-format ASIN input to uppercase and validate in real-time
                 asinInput.addEventListener('input', function(e) {
                     e.target.value = e.target.value.toUpperCase();
+                    
+                    // Clear error styling if input becomes valid or is being typed
+                    const value = e.target.value.trim();
+                    if (value.length === 0) {
+                        // Clear errors when input is empty
+                        clearError();
+                    } else if (ASIN_REGEX.test(value)) {
+                        // Clear errors when ASIN format is valid
+                        clearError();
+                    } else if (value.length > 0 && value.length < 10) {
+                        // Don't show error while user is still typing (less than 10 chars)
+                        clearError();
+                    } else if (value.length > 10) {
+                        // Show error for too long input with red dotted outline
+                        showError('ASIN must be exactly 10 characters.');
+                    }
+                });
+                
+                // Validate on blur (when user leaves the field)
+                asinInput.addEventListener('blur', function(e) {
+                    const value = e.target.value.trim();
+                    if (value.length > 0 && !ASIN_REGEX.test(value)) {
+                        showError('Invalid ASIN format. Must be exactly 10 alphanumeric characters.');
+                    }
                 });
             }
 
