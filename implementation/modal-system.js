@@ -246,12 +246,20 @@
                     }
                     
                     .cqe-modal-content .b-popover button {
-                        background: none;
-                        border: none;
-                        padding: 0;
+                        background: none !important;
+                        border: none !important;
+                        padding: 0 !important;
                         cursor: pointer;
                         display: inline-block;
                         vertical-align: middle;
+                        box-shadow: none !important;
+                        outline: none !important;
+                        margin: 0 !important;
+                    }
+                    
+                    .cqe-modal-content .b-popover button::before,
+                    .cqe-modal-content .b-popover button::after {
+                        display: none !important;
                     }
                     
                     .cqe-modal-content .b-popover .b-alert.b-info.b-inline {
