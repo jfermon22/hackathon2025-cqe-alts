@@ -347,8 +347,12 @@
                 if (!container) return;
                 
                 container.innerHTML = `
-                    <div class="cqe-section-header">Select Suggested Alternates</div>
-                    <p>Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used):</p>
+                    <div class="cqe-section-header">
+                        Select Suggested Alternates
+                        <button data-testid="select-alternates-popover-trigger" type="button" class="cqe-tooltip-btn" aria-expanded="false" title="Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used)">
+                            <div class="b-alert b-info b-inline" role="alert"></div>
+                        </button>
+                    </div>
                 `;
                 
                 results.forEach(product => {

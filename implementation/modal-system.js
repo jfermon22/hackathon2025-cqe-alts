@@ -62,35 +62,35 @@
 
                             <!-- Alternates Information Form -->
                             <div class="cqe-form-group">
-                                <div class="cqe-section-header">Alternates Information Form</div>
-                                <p>Providing additional information about your intent and key attributes of your requested product will help improve suppliers' ability to respond with potential alternates.</p>
+                                <div class="cqe-section-header">
+                                    Alternates Information Form
+                                    <button data-testid="alternates-info-popover-trigger" type="button" class="cqe-tooltip-btn" aria-expanded="false" title="Providing additional information about your intent and key attributes of your requested product will help improve suppliers' ability to respond with potential alternates.&#10;&#10;⚠️ Please do not include any personal identifying information. Any PII will be automatically removed and not sent to suppliers.">
+                                        <div class="b-alert b-info b-inline" role="alert"></div>
+                                    </button>
+                                </div>
 
-                                <div class="cqe-form-group">
+                                <div class="cqe-form-field">
                                     <label for="cqe-intent">Customer Usage Intent</label>
                                     <textarea id="cqe-intent" class="b-form-control" rows="2" maxlength="200" placeholder="Describe what the product is intended for..."></textarea>
                                     <div class="character-count" id="cqe-intent-count">0/200</div>
                                 </div>
 
-                                <div class="cqe-form-group">
+                                <div class="cqe-form-field">
                                     <label for="cqe-item-description">Item Description</label>
                                     <textarea id="cqe-item-description" class="b-form-control" rows="2" maxlength="200" placeholder="Brief description of the item (e.g., laptop, blue pens, binder dividers)"></textarea>
                                     <div class="character-count" id="cqe-item-description-count">0/200</div>
                                 </div>
 
-                                <div class="cqe-form-group">
+                                <div class="cqe-form-field">
                                     <label for="cqe-must-have">Must-Have Attributes</label>
                                     <textarea id="cqe-must-have" class="b-form-control" rows="2" maxlength="200" placeholder="Critical product features required (e.g., 256 GB of storage space, USB-C connector)"></textarea>
                                     <div class="character-count" id="cqe-must-have-count">0/200</div>
                                 </div>
 
-                                <div class="cqe-form-group">
+                                <div class="cqe-form-field">
                                     <label for="cqe-preferred">Preferred Attributes</label>
                                     <textarea id="cqe-preferred" class="b-form-control" rows="2" maxlength="200" placeholder="Nice-to-have characteristics or preferences (e.g., Black color preferred, but blue is acceptable)"></textarea>
                                     <div class="character-count" id="cqe-preferred-count">0/200</div>
-                                </div>
-
-                                <div class="cqe-warning">
-                                    ⚠️ Please do not include any personal identifying information. Any PII will be automatically removed and not sent to suppliers.
                                 </div>
                             </div>
 
@@ -206,17 +206,66 @@
                         background: rgba(0, 0, 0, 0.1);
                     }
                     
-                    /* Product context */
+                    /* Product context - more compact */
                     .cqe-product-context {
-                        padding: 1rem 1.5rem;
+                        padding: 0.75rem 1.5rem;
                         background: #f0f8ff;
                         border-bottom: 1px solid #ddd;
-                        font-size: 0.9rem;
+                        font-size: 0.85rem;
                     }
                     
                     /* POC Modal Functionality Styles */
                     .cqe-form-group {
-                        margin: 1rem 1.5rem;
+                        margin: 0.75rem 1.5rem;
+                    }
+                    
+                    /* Compact form fields */
+                    .cqe-form-field {
+                        margin-bottom: 0.75rem;
+                    }
+                    
+                    .cqe-form-field:last-child {
+                        margin-bottom: 0;
+                    }
+                    
+                    /* Amazon-style tooltip button */
+                    .cqe-tooltip-btn {
+                        background: none;
+                        border: none;
+                        padding: 0;
+                        margin-left: 8px;
+                        cursor: pointer;
+                        display: inline-block;
+                        vertical-align: middle;
+                    }
+                    
+                    .cqe-tooltip-btn .b-alert.b-info.b-inline {
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 50%;
+                        background-color: #007185;
+                        border: 1px solid #007185;
+                        position: relative;
+                        display: inline-block;
+                        margin: 0;
+                    }
+                    
+                    .cqe-tooltip-btn .b-alert.b-info.b-inline::before {
+                        content: "i";
+                        color: white;
+                        font-size: 12px;
+                        font-weight: bold;
+                        font-style: normal;
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        line-height: 1;
+                    }
+                    
+                    .cqe-tooltip-btn:hover .b-alert.b-info.b-inline {
+                        background-color: #005a6b;
+                        border-color: #005a6b;
                     }
                     
                     .cqe-section-header {
@@ -500,14 +549,14 @@
             // Update product context
             const contextDiv = document.querySelector('#cqe-product-context');
             if (contextDiv && productData) {
-                let contextHTML = `<strong>Product:</strong> ${productData.name || 'Product'}<br>`;
+                let contextHTML = '';
                 
                 if (productData.asin) {
-                    contextHTML += `<strong>ASIN:</strong> ${productData.asin}<br>`;
+                    contextHTML += `<strong>ASIN:</strong> ${productData.asin}`;
                 }
                 
                 if (productData.quantity) {
-                    contextHTML += `<strong>Quantity:</strong> ${productData.quantity}<br>`;
+                    contextHTML += ` | <strong>Quantity:</strong> ${productData.quantity}`;
                 }
                 
                 contextDiv.innerHTML = contextHTML;
