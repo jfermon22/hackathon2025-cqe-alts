@@ -116,22 +116,29 @@
         
         // Create alternates display for table cell
         createAlternatesDisplay: function(alternatesWithInfo, productKey) {
-            const alternatesHtml = alternatesWithInfo.map(product => `
-                <div class="cqe-alternate-item" style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f0f0;">
-                    ${product.image ? 
-                        `<img src="${product.image}" style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="${product.name}">` :
-                        `<div style="width: 32px; height: 32px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
-                    }
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-size: 0.85rem; color: #232f3e; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${product.name}">
-                            ${product.name}
+            const alternatesHtml = alternatesWithInfo.map(product => {
+                // Truncate product name to 50 characters for table display
+                const truncatedName = product.name.length > 50 ? 
+                    product.name.substring(0, 50) + '...' : 
+                    product.name;
+                
+                return `
+                    <div class="cqe-alternate-item" style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f0f0;">
+                        ${product.image ? 
+                            `<img src="${product.image}" style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="${product.name}">` :
+                            `<div style="width: 32px; height: 32px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
+                        }
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 0.85rem; color: #232f3e; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${product.name}">
+                                ${truncatedName}
+                            </div>
                         </div>
+                        <button class="cqe-alternate-remove" data-asin="${product.asin}" data-product-key="${productKey}" 
+                                style="background: none; border: none; color: #666; font-size: 16px; cursor: pointer; padding: 2px 4px; border-radius: 2px; line-height: 1;"
+                                title="Remove alternate">×</button>
                     </div>
-                    <button class="cqe-alternate-remove" data-asin="${product.asin}" data-product-key="${productKey}" 
-                            style="background: none; border: none; color: #666; font-size: 16px; cursor: pointer; padding: 2px 4px; border-radius: 2px; line-height: 1;"
-                            title="Remove alternate">×</button>
-                </div>
-            `).join('');
+                `;
+            }).join('');
             
             const isAtLimit = alternatesWithInfo.length >= 3;
             
@@ -250,18 +257,67 @@
                 alternateItem.remove();
             }
             
-            // Update the button/message state based on remaining alternates
-            const buttonCell = removeBtn.closest('td');
+            // Enhanced DOM traversal to find the button cell more reliably
+            let buttonCell = null;
+            
+            // Try multiple approaches to find the containing cell
+            // Approach 1: Direct closest td
+            buttonCell = removeBtn.closest('td');
+            
+            // Approach 2: Look for alternates display container, then find its parent cell
             if (!buttonCell) {
-                window.log('❌ Could not find button cell for removal operation');
+                const alternatesDisplay = removeBtn.closest('.cqe-alternates-display');
+                if (alternatesDisplay) {
+                    buttonCell = alternatesDisplay.closest('td');
+                }
+            }
+            
+            // Approach 3: Traverse up the DOM tree looking for a table cell
+            if (!buttonCell) {
+                let element = removeBtn.parentElement;
+                while (element && element !== document.body) {
+                    if (element.tagName === 'TD') {
+                        buttonCell = element;
+                        break;
+                    }
+                    element = element.parentElement;
+                }
+            }
+            
+            // Approach 4: Find by looking for elements with the product key
+            if (!buttonCell) {
+                const elementsWithProductKey = document.querySelectorAll(`[data-product-key="${productKey}"]`);
+                for (const element of elementsWithProductKey) {
+                    const cell = element.closest('td');
+                    if (cell && cell.querySelector('.cqe-alternates-display')) {
+                        buttonCell = cell;
+                        break;
+                    }
+                }
+            }
+            
+            if (!buttonCell) {
+                window.log('❌ Could not find button cell for removal operation after trying multiple approaches');
+                window.log('DOM context:', {
+                    removeBtn: removeBtn,
+                    parentElement: removeBtn.parentElement,
+                    productKey: productKey,
+                    asin: asin
+                });
                 return;
             }
+            
+            window.log('✅ Found button cell using DOM traversal');
+            
             const remainingAlternates = buttonCell.querySelectorAll('.cqe-alternate-item').length;
             const addBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
             const maxMessage = buttonCell.querySelector('.cqe-max-alternates-message');
             
+            window.log(`Remaining alternates: ${remainingAlternates}, Has add button: ${!!addBtn}, Has max message: ${!!maxMessage}`);
+            
             // If we were at limit (3) and now below, replace message with button
             if (remainingAlternates < 3 && maxMessage && !addBtn) {
+                window.log('Replacing max message with add button');
                 maxMessage.outerHTML = `
                     <button class="b-button cqe-add-alternates-btn" data-product-key="${productKey}" 
                             style="font-size: 0.85rem; padding: 6px 12px; margin-top: 8px;">
@@ -273,11 +329,15 @@
                 const newAddBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
                 if (newAddBtn) {
                     newAddBtn.addEventListener('click', (e) => this.handleAddAlternatesFromTable(e));
+                    window.log('✅ Added click handler to new Add Alternates button');
+                } else {
+                    window.log('❌ Failed to find newly created Add Alternates button');
                 }
             }
             
             // If no alternates left, replace with original button
             if (remainingAlternates === 0) {
+                window.log('No alternates remaining, replacing with original button');
                 const originalProductData = this.getProductDataFromRow(buttonCell.closest('tr'));
                 if (originalProductData && window.CQE_MAIN) {
                     buttonCell.innerHTML = `
@@ -286,7 +346,12 @@
                         </button>
                     `;
                     const newBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
-                    newBtn.addEventListener('click', (e) => window.CQE_MAIN.handleAddAlternatesClick(e, originalProductData));
+                    if (newBtn) {
+                        newBtn.addEventListener('click', (e) => window.CQE_MAIN.handleAddAlternatesClick(e, originalProductData));
+                        window.log('✅ Replaced with original Add Alternates button and added click handler');
+                    }
+                } else {
+                    window.log('❌ Could not get original product data or CQE_MAIN not available');
                 }
             }
         },
@@ -619,40 +684,89 @@
                 return true;
             };
 
-            // Update the consolidated alternates display
-            const updateSelectedAlternatesDisplay = () => {
+            // Update the consolidated alternates display with enhanced tiles
+            const updateSelectedAlternatesDisplay = async () => {
                 if (!selectedAlternatesDisplay || !asinList) return;
                 
                 // Always show the section since we have the input field there
                 selectedAlternatesDisplay.style.display = 'block';
                 asinList.innerHTML = '';
                 
-                // Add manual ASINs first
-                this.manualAsins.forEach(value => {
+                // Add manual ASINs first with enhanced tiles
+                for (const value of this.manualAsins) {
                     const li = document.createElement('li');
                     li.className = 'manual-entry';
+                    li.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px; background-color: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef; border-left: 4px solid #ff9900; margin-bottom: 8px;';
+                    
+                    // Show loading state initially
                     li.innerHTML = `
-                        <div>
-                            <span class="asin-text">${value}</span>
-                            <span class="cqe-asin-type-label manual-label">Customer Supplied</span>
+                        <div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">
+                            <div style="width: 16px; height: 16px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
                         </div>
-                        <button class="remove-btn" title="Remove">×</button>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</div>
+                            <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; margin-top: 4px; background-color: #fff3cd; color: #856404; display: inline-block;">Customer Supplied</div>
+                            <div style="font-size: 0.8rem; color: #666; margin-top: 2px;">Loading product info...</div>
+                        </div>
+                        <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
                     `;
                     asinList.appendChild(li);
-                });
+                    
+                    // Fetch product info asynchronously
+                    try {
+                        const productInfo = await this.fetchProductInfoFromASIN(value);
+                        const truncatedName = productInfo.name.length > 25 ? 
+                            productInfo.name.substring(0, 25) + '...' : 
+                            productInfo.name;
+                        
+                        // Update the tile with fetched info
+                        li.innerHTML = `
+                            ${productInfo.image ? 
+                                `<img src="${productInfo.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="${productInfo.name}">` :
+                                `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
+                            }
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</div>
+                                <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; margin-top: 4px; background-color: #fff3cd; color: #856404; display: inline-block;">Customer Supplied</div>
+                                <div style="font-size: 0.8rem; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${productInfo.name}">${truncatedName}</div>
+                            </div>
+                            <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
+                        `;
+                    } catch (error) {
+                        // Update with error state
+                        li.innerHTML = `
+                            <div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${value}</div>
+                                <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; margin-top: 4px; background-color: #fff3cd; color: #856404; display: inline-block;">Customer Supplied</div>
+                                <div style="font-size: 0.8rem; color: #666; margin-top: 2px;">Product info unavailable</div>
+                            </div>
+                            <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
+                        `;
+                    }
+                }
                 
-                // Add selected alternates
+                // Add selected alternates with enhanced tiles
                 this.selectedAlternates.forEach(asin => {
                     const product = mockProducts.find(p => p.asin === asin);
+                    const truncatedName = product && product.name && product.name.length > 25 ? 
+                        product.name.substring(0, 25) + '...' : 
+                        (product?.name || asin);
+                    
                     const li = document.createElement('li');
                     li.className = 'selected-alternate';
+                    li.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px; background-color: #f8fff9; border-radius: 6px; border: 1px solid #e9ecef; border-left: 4px solid #28a745; margin-bottom: 8px;';
                     li.innerHTML = `
-                        <div>
-                            <span class="asin-text">${asin}</span>
-                            <span class="cqe-asin-type-label alternate-label">Amazon Suggested</span>
-                            ${product && product.name ? `<div style="font-size: 0.8rem; color: #666; margin-top: 2px;">${product.name}</div>` : ''}
+                        ${product && product.image ? 
+                            `<img src="${product.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="${product.name}">` :
+                            `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
+                        }
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-family: monospace; font-weight: 600; color: #232f3e; font-size: 0.9rem;">${asin}</div>
+                            <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; margin-top: 4px; background-color: #d4edda; color: #155724; display: inline-block;">Amazon Suggested</div>
+                            <div style="font-size: 0.8rem; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${product?.name || asin}">${truncatedName}</div>
                         </div>
-                        <button class="remove-btn" title="Remove">×</button>
+                        <button class="remove-btn" title="Remove" style="background-color: #dc3545; color: white; padding: 4px 8px; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">×</button>
                     `;
                     asinList.appendChild(li);
                 });
