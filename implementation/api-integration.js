@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         CQE HTTP API Integration Module
+// @name         CQE API Integration Module
 // @namespace    http://amazon.com/cqe
 // @version      4.0
-// @description  HTTP API integration for CQE Alternates Enhancement (Replacing Bedrock)
+// @description  HTTP API integration for CQE Alternates Enhancement
 // @author       Amazon
 // @grant        none
 // ==/UserScript==
@@ -10,8 +10,8 @@
 (function() {
     'use strict';
     
-    // HTTP API Integration System (Replacing Bedrock Agent Runtime)
-    window.BEDROCK_AGENT_INTEGRATION = {
+    // HTTP API Integration System
+    window.API_INTEGRATION = {
         // Configuration - HTTP API Endpoint
         CONFIG: {
             apiEndpoint: 'https://dzzzjrtgc8.execute-api.us-west-2.amazonaws.com/invoke-agent',
@@ -216,7 +216,7 @@
         console.log('📤 RAW INPUT TO API (Search Term Generation):', JSON.stringify(agentInput, null, 2));
         
         try {
-            const response = await window.BEDROCK_AGENT_INTEGRATION.makeRequest(agentInput);
+            const response = await window.API_INTEGRATION.makeRequest(agentInput);
             
             if (response.success) {
                 console.log('📥 RAW OUTPUT FROM API (Search Term Generation):', response.response);
@@ -289,7 +289,7 @@
         console.log('📤 RAW INPUT TO API (Supplier Summary):', JSON.stringify(agentInput, null, 2));
         
         try {
-            const response = await window.BEDROCK_AGENT_INTEGRATION.makeRequest(agentInput);
+            const response = await window.API_INTEGRATION.makeRequest(agentInput);
             
             if (response.success) {
                 console.log('📥 RAW OUTPUT FROM API (Supplier Summary):', response.response);
@@ -343,5 +343,5 @@
         }
     };
     
-    window.log('HTTP API Integration module loaded (replacing Bedrock)');
+    window.log('API Integration module loaded');
 })();

@@ -1,6 +1,7 @@
 implementation/cqe-alternates-enhancement.user.js
 bedrock-agent-poc
 bedrock-bundle-simple
+bedrock-api
 bedrock-agent-bundle
 bedrock-userscript-bundle/node_modules
 bedrock-userscript-bundle/src
@@ -11,3 +12,7 @@ bedrock-userscript-bundle/package-lock.json
 bedrock-userscript-bundle/package.json
 bedrock-userscript-bundle/test.html
 bedrock-userscript-bundle/webpack.config.js
+test-api-integration.html
+test-bundle-integration.html
+test-github-bundle.html
+test-jsdelivr-bundle.html
