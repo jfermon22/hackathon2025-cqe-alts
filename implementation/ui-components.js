@@ -138,11 +138,15 @@
             return `
                 <div class="cqe-alternates-display">
                     ${alternatesHtml}
-                    <button class="b-button cqe-add-alternates-btn" data-product-key="${productKey}" 
-                            style="font-size: 0.85rem; padding: 6px 12px; margin-top: 8px; ${isAtLimit ? 'background: #ccc; border-color: #ccc; color: #666; cursor: not-allowed;' : ''}"
-                            ${isAtLimit ? 'disabled' : ''}>
-                        ${isAtLimit ? 'Maximum Reached' : 'Add Alternates'}
-                    </button>
+                    ${isAtLimit ? 
+                        `<div class="cqe-max-alternates-message" style="font-size: 0.85rem; color: #666; text-align: center; margin-top: 8px; padding: 6px 12px; background: #f8f9fa; border-radius: 4px; border: 1px solid #e9ecef;">
+                            Maximum allowed alternate ASINs selected
+                        </div>` :
+                        `<button class="b-button cqe-add-alternates-btn" data-product-key="${productKey}" 
+                                style="font-size: 0.85rem; padding: 6px 12px; margin-top: 8px;">
+                            Add Alternates
+                        </button>`
+                    }
                 </div>
             `;
         },
@@ -246,19 +250,25 @@
                 alternateItem.remove();
             }
             
-            // Update the "Add Alternates" button state
+            // Update the button/message state based on remaining alternates
             const buttonCell = removeBtn.closest('td');
             const remainingAlternates = buttonCell.querySelectorAll('.cqe-alternate-item').length;
             const addBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
+            const maxMessage = buttonCell.querySelector('.cqe-max-alternates-message');
             
-            if (addBtn && remainingAlternates < 3) {
-                addBtn.disabled = false;
-                addBtn.textContent = 'Add Alternates';
-                addBtn.style.cssText = 'font-size: 0.85rem; padding: 6px 12px; margin-top: 8px;';
+            // If we were at limit (3) and now below, replace message with button
+            if (remainingAlternates < 3 && maxMessage && !addBtn) {
+                maxMessage.outerHTML = `
+                    <button class="b-button cqe-add-alternates-btn" data-product-key="${productKey}" 
+                            style="font-size: 0.85rem; padding: 6px 12px; margin-top: 8px;">
+                        Add Alternates
+                    </button>
+                `;
                 
-                // Re-add click handler if it was disabled
-                if (!addBtn.onclick) {
-                    addBtn.addEventListener('click', (e) => this.handleAddAlternatesFromTable(e));
+                // Add click handler to the new button
+                const newAddBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
+                if (newAddBtn) {
+                    newAddBtn.addEventListener('click', (e) => this.handleAddAlternatesFromTable(e));
                 }
             }
             
