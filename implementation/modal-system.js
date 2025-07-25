@@ -238,14 +238,14 @@
                         margin-bottom: 0;
                     }
                     
-                    /* Amazon-style popover */
-                    .b-popover {
+                    /* CQE Modal-specific popover styles - scoped to prevent interference with Amazon's tooltips */
+                    .cqe-modal-content .b-popover {
                         position: relative;
                         display: inline-block;
                         margin-left: 8px;
                     }
                     
-                    .b-popover button {
+                    .cqe-modal-content .b-popover button {
                         background: none;
                         border: none;
                         padding: 0;
@@ -254,7 +254,7 @@
                         vertical-align: middle;
                     }
                     
-                    .b-popover .b-alert.b-info.b-inline {
+                    .cqe-modal-content .b-popover .b-alert.b-info.b-inline {
                         width: 16px;
                         height: 16px;
                         border-radius: 50%;
@@ -265,7 +265,7 @@
                         margin: 0;
                     }
                     
-                    .b-popover .b-alert.b-info.b-inline::before {
+                    .cqe-modal-content .b-popover .b-alert.b-info.b-inline::before {
                         content: "i";
                         color: white;
                         font-size: 12px;
@@ -278,12 +278,12 @@
                         line-height: 1;
                     }
                     
-                    .b-popover button:hover .b-alert.b-info.b-inline {
+                    .cqe-modal-content .b-popover button:hover .b-alert.b-info.b-inline {
                         background-color: #005a6b;
                         border-color: #005a6b;
                     }
                     
-                    .b-popover .b-content {
+                    .cqe-modal-content .b-popover .b-content {
                         background: white;
                         border: 1px solid #ddd;
                         border-radius: 4px;
@@ -293,14 +293,14 @@
                         width: max-content;
                     }
                     
-                    .b-popover .b-body {
+                    .cqe-modal-content .b-popover .b-body {
                         padding: 12px 16px;
                         font-size: 0.9rem;
                         line-height: 1.4;
                         color: #333;
                     }
                     
-                    .b-popover .floating-arrow {
+                    .cqe-modal-content .b-popover .floating-arrow {
                         position: absolute;
                         width: 0;
                         height: 0;
@@ -311,7 +311,7 @@
                         left: 16px;
                     }
                     
-                    .b-popover .floating-arrow::before {
+                    .cqe-modal-content .b-popover .floating-arrow::before {
                         content: '';
                         position: absolute;
                         width: 0;
@@ -323,7 +323,7 @@
                         left: -9px;
                     }
                     
-                    .b-popover.b-hover:hover .b-content {
+                    .cqe-modal-content .b-popover.b-hover:hover .b-content {
                         visibility: visible !important;
                     }
                     
