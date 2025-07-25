@@ -107,6 +107,9 @@
                             <!-- Suggested Alternates Section -->
                             <div id="cqe-suggested-alternates" class="cqe-alternates-section" style="display: none;"></div>
 
+                            <!-- Form Error Message -->
+                            <div id="cqe-form-error" class="cqe-form-error" style="display: none;"></div>
+
                             <!-- Action Buttons -->
                             <div class="cqe-form-group">
                                 <button id="cqe-suggest-btn" class="b-button b-outline">Suggest Alternates</button>
@@ -608,6 +611,24 @@
                         border: 1px solid #ddd;
                         border-radius: 4px;
                         font-size: 0.9rem;
+                    }
+                    
+                    /* Form error styling - appears above action buttons */
+                    .cqe-form-error {
+                        margin: 0.75rem 1.5rem;
+                        color: #dc3545;
+                        font-size: 0.9rem;
+                        padding: 8px 12px;
+                        background-color: #f8d7da;
+                        border: 1px solid #f5c6cb;
+                        border-radius: 4px;
+                    }
+                    
+                    /* Form field error styling (red dotted outline like CQE pattern) */
+                    .cqe-modal-content .b-form-control.is-error {
+                        border: 2px dotted #dc3545 !important;
+                        background-color: #fff5f5 !important;
+                        box-shadow: none !important;
                     }
                 </style>
             `;

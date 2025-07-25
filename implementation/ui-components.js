@@ -486,7 +486,7 @@
                 });
             };
 
-            // Show error message with proper styling (red dotted outline)
+            // Show error message with proper styling (red dotted outline) - for ASIN input only
             const showError = (message) => {
                 if (!asinError || !asinInput) return;
                 
@@ -509,7 +509,7 @@
                 }, 5000);
             };
             
-            // Clear error styling
+            // Clear error styling - for ASIN input only
             const clearError = () => {
                 if (asinInput) {
                     asinInput.classList.remove('is-error');
@@ -523,6 +523,50 @@
                     asinError.classList.remove('is-error');
                     asinError.textContent = '';
                 }
+            };
+
+            // Show form validation error - for form fields validation
+            const showFormError = (message, fieldsToHighlight = []) => {
+                const formError = document.getElementById('cqe-form-error');
+                if (!formError) return;
+                
+                // Show error message above action buttons
+                formError.textContent = message;
+                formError.style.display = 'block';
+                formError.setAttribute('role', 'alert');
+                
+                // Highlight specified form fields with red dotted border
+                fieldsToHighlight.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        field.classList.add('is-error');
+                        field.setAttribute('aria-invalid', 'true');
+                    }
+                });
+                
+                // Clear form error after 8 seconds
+                setTimeout(() => {
+                    clearFormError();
+                }, 8000);
+            };
+            
+            // Clear form validation error
+            const clearFormError = () => {
+                const formError = document.getElementById('cqe-form-error');
+                if (formError) {
+                    formError.style.display = 'none';
+                    formError.textContent = '';
+                }
+                
+                // Clear error styling from all form fields
+                const formFields = ['cqe-intent', 'cqe-item-description', 'cqe-must-have', 'cqe-preferred'];
+                formFields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        field.classList.remove('is-error');
+                        field.removeAttribute('aria-invalid');
+                    }
+                });
             };
 
             // Add manual ASIN to the list
@@ -878,14 +922,24 @@
                     preferred: stripPII(document.getElementById('cqe-preferred')?.value.trim() || '')
                 };
                 
+                // Clear any existing form errors first
+                clearFormError();
+                
                 // Validate payload
                 if (payload.allAsins.length === 0) {
-                    showError('Please add at least one ASIN (manual or selected alternate) before submitting.');
+                    showFormError('Please add at least one ASIN (manual or selected alternate) before submitting.');
                     return;
                 }
                 
                 if (!payload.intent && !payload.itemDescription && !payload.mustHave && !payload.preferred) {
-                    showError('Please provide at least some information in the form fields.');
+                    // Determine which fields are empty and highlight them
+                    const emptyFields = [];
+                    if (!payload.intent) emptyFields.push('cqe-intent');
+                    if (!payload.itemDescription) emptyFields.push('cqe-item-description');
+                    if (!payload.mustHave) emptyFields.push('cqe-must-have');
+                    if (!payload.preferred) emptyFields.push('cqe-preferred');
+                    
+                    showFormError('Please provide at least some information in the Alternates Information Form fields.', emptyFields);
                     return;
                 }
                 
