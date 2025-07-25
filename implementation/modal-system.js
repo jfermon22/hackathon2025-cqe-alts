@@ -7,8 +7,7 @@
 // @grant        none
 // ==/UserScript==
 
-(function() {
-    'use strict';
+'use strict';
     
     // Modal system functionality
     window.MODAL_SYSTEM = {
@@ -751,4 +750,3 @@
     };
     
     window.log('Modal System module loaded');
-})();

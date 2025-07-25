@@ -2,13 +2,12 @@
 // @name         CQE Main Initialization Module
 // @namespace    http://amazon.com/cqe
 // @version      1.0
-// @description  Main initialization and page detection for CQE Alternates Enhancement
+// @description  Main initialization and orchestration for CQE Alternates Enhancement
 // @author       Amazon
 // @grant        none
 // ==/UserScript==
 
-(function() {
-    'use strict';
+'use strict';
     
     // Main initialization functionality
     window.CQE_MAIN = {
@@ -656,4 +655,3 @@
     };
     
     window.log('Main Initialization module loaded');
-})();

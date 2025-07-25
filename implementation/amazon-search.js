@@ -4,11 +4,10 @@
 // @version      1.0
 // @description  Amazon product search functionality for CQE Alternates Enhancement
 // @author       Amazon
-// @grant        GM_xmlhttpRequest
+// @grant        none
 // ==/UserScript==
 
-(function() {
-    'use strict';
+'use strict';
     
     // Amazon Search Module - Self-contained search functionality
     window.AMAZON_SEARCH_MODULE = {
@@ -306,4 +305,3 @@
     };
     
     window.log('Amazon Search module loaded');
-})();

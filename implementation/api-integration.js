@@ -1,14 +1,13 @@
 // ==UserScript==
 // @name         CQE API Integration Module
 // @namespace    http://amazon.com/cqe
-// @version      4.0
-// @description  HTTP API integration for CQE Alternates Enhancement
+// @version      1.0
+// @description  API integration for Bedrock agent communication in CQE Alternates Enhancement
 // @author       Amazon
 // @grant        none
 // ==/UserScript==
 
-(function() {
-    'use strict';
+'use strict';
     
     // HTTP API Integration System
     window.API_INTEGRATION = {
@@ -310,4 +309,3 @@
     };
     
     window.log('API Integration module loaded');
-})();

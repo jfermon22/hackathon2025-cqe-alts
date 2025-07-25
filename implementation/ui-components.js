@@ -7,8 +7,7 @@
 // @grant        none
 // ==/UserScript==
 
-(function() {
-    'use strict';
+'use strict';
     
     // Global storage for alternates by product
     window.PRODUCT_ALTERNATES_STORAGE = {};
@@ -1417,7 +1416,6 @@
     };
     
     window.log('UI Components module loaded');
-})();
 
 // Note: Global functions for remove buttons have been replaced with event delegation
 // The remove functionality is now handled by the handleRemoveClick event listener

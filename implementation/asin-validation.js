@@ -2,13 +2,12 @@
 // @name         CQE ASIN Validation Module
 // @namespace    http://amazon.com/cqe
 // @version      1.0
-// @description  ASIN validation and extraction utilities
+// @description  ASIN validation utilities for CQE Alternates Enhancement
 // @author       Amazon
 // @grant        none
 // ==/UserScript==
 
-(function() {
-    'use strict';
+'use strict';
     
     // ASIN validation utilities
     window.ASIN_VALIDATION = {
@@ -167,4 +166,3 @@
     };
     
     window.log('ASIN Validation module loaded');
-})();
