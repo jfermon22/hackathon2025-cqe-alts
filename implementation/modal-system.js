@@ -617,6 +617,30 @@
                 window.log('No ASIN available for this product, cleared original ASIN validation');
             }
             
+            // REQUIREMENT 3: Load existing alternates for this product if they exist
+            if (window.UI_COMPONENTS) {
+                const productKey = productData.id || productData.asin || productData.rowKey;
+                const existingData = window.PRODUCT_ALTERNATES_STORAGE[productKey];
+                
+                if (existingData) {
+                    window.log('Loading existing alternates for product:', productKey);
+                    
+                    // Restore previous selections
+                    window.UI_COMPONENTS.manualAsins = new Set(existingData.manualAsins || []);
+                    window.UI_COMPONENTS.selectedAlternates = new Set(existingData.selectedAlternates || []);
+                    
+                    window.log('Restored alternates:', {
+                        manual: Array.from(window.UI_COMPONENTS.manualAsins),
+                        selected: Array.from(window.UI_COMPONENTS.selectedAlternates)
+                    });
+                } else {
+                    // Fresh start - clear any previous data
+                    window.UI_COMPONENTS.manualAsins = new Set();
+                    window.UI_COMPONENTS.selectedAlternates = new Set();
+                    window.log('No existing alternates found, starting fresh');
+                }
+            }
+            
             // Update product context with enhanced display
             const contextDiv = document.querySelector('#cqe-product-context');
             if (contextDiv && productData) {

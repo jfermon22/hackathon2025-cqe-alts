@@ -10,12 +10,298 @@
 (function() {
     'use strict';
     
+    // Global storage for alternates by product
+    window.PRODUCT_ALTERNATES_STORAGE = {};
+    
     // UI Components and handlers
     window.UI_COMPONENTS = {
         // Global state for modal functionality
         manualAsins: new Set(),
         selectedAlternates: new Set(),
         originalAsin: null, // Store the original requested ASIN
+        
+        // Function to fetch product info from Amazon using ASIN
+        fetchProductInfoFromASIN: async function(asin) {
+            try {
+                window.log(`🔍 Fetching product info for ASIN: ${asin}`);
+                
+                // Use existing Amazon search logic to get product info
+                const amazonUrl = `https://www.amazon.com/dp/${asin}`;
+                
+                // Create a promise-based wrapper for GM_xmlhttpRequest
+                const response = await new Promise((resolve, reject) => {
+                    if (typeof GM_xmlhttpRequest !== 'undefined') {
+                        GM_xmlhttpRequest({
+                            method: 'GET',
+                            url: amazonUrl,
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+                            },
+                            onload: resolve,
+                            onerror: reject,
+                            ontimeout: () => reject(new Error('Request timeout')),
+                            timeout: 10000
+                        });
+                    } else {
+                        // Fallback to fetch if GM_xmlhttpRequest is not available
+                        fetch(amazonUrl)
+                            .then(response => resolve({ responseText: response.text() }))
+                            .catch(reject);
+                    }
+                });
+                
+                if (response.status && response.status !== 200) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                // Parse the HTML response
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(response.responseText, 'text/html');
+                
+                // Extract product name
+                let productName = '';
+                const nameSelectors = [
+                    '#productTitle',
+                    '.product-title',
+                    'h1.a-size-large',
+                    'h1[data-automation-id="product-title"]',
+                    '.a-size-large.product-title-word-break'
+                ];
+                
+                for (const selector of nameSelectors) {
+                    const nameElement = doc.querySelector(selector);
+                    if (nameElement && nameElement.textContent.trim()) {
+                        productName = nameElement.textContent.trim();
+                        break;
+                    }
+                }
+                
+                // Extract product image
+                let productImage = '';
+                const imageSelectors = [
+                    '#landingImage',
+                    '.a-dynamic-image',
+                    '#imgBlkFront',
+                    '.a-image-wrapper img'
+                ];
+                
+                for (const selector of imageSelectors) {
+                    const imageElement = doc.querySelector(selector);
+                    if (imageElement && imageElement.src) {
+                        productImage = imageElement.src;
+                        break;
+                    }
+                }
+                
+                const productInfo = {
+                    asin: asin,
+                    name: productName || asin,
+                    image: productImage || ''
+                };
+                
+                window.log(`✅ Successfully fetched product info:`, productInfo);
+                return productInfo;
+                
+            } catch (error) {
+                window.log(`❌ Error fetching product info for ${asin}:`, error.message);
+                // Return fallback data
+                return {
+                    asin: asin,
+                    name: asin,
+                    image: ''
+                };
+            }
+        },
+        
+        // Create alternates display for table cell
+        createAlternatesDisplay: function(alternatesWithInfo, productKey) {
+            const alternatesHtml = alternatesWithInfo.map(product => `
+                <div class="cqe-alternate-item" style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f0f0;">
+                    ${product.image ? 
+                        `<img src="${product.image}" style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="${product.name}">` :
+                        `<div style="width: 32px; height: 32px; background: #f0f0f0; border-radius: 4px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #666;">IMG</div>`
+                    }
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 0.85rem; color: #232f3e; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${product.name}">
+                            ${product.name}
+                        </div>
+                    </div>
+                    <button class="cqe-alternate-remove" data-asin="${product.asin}" data-product-key="${productKey}" 
+                            style="background: none; border: none; color: #666; font-size: 16px; cursor: pointer; padding: 2px 4px; border-radius: 2px; line-height: 1;"
+                            title="Remove alternate">×</button>
+                </div>
+            `).join('');
+            
+            const isAtLimit = alternatesWithInfo.length >= 3;
+            
+            return `
+                <div class="cqe-alternates-display">
+                    ${alternatesHtml}
+                    <button class="b-button cqe-add-alternates-btn" data-product-key="${productKey}" 
+                            style="font-size: 0.85rem; padding: 6px 12px; margin-top: 8px; ${isAtLimit ? 'background: #ccc; border-color: #ccc; color: #666; cursor: not-allowed;' : ''}"
+                            ${isAtLimit ? 'disabled' : ''}>
+                        ${isAtLimit ? 'Maximum Reached' : 'Add Alternates'}
+                    </button>
+                </div>
+            `;
+        },
+        
+        // Update table with alternates after submission
+        updateTableWithAlternates: async function(productKey, asins) {
+            try {
+                window.log(`🔄 Updating table with alternates for product: ${productKey}`);
+                
+                // Find the table row for this product
+                const tableRow = document.querySelector(`tr[data-key="${productKey}"]`) || 
+                                 document.querySelector(`tr[data-asin="${productKey}"]`);
+                
+                if (!tableRow) {
+                    window.log(`❌ Could not find table row for product: ${productKey}`);
+                    return;
+                }
+                
+                // Find the "Add Alternates" button cell
+                const buttonCell = tableRow.querySelector('.cqe-add-alternates-btn')?.closest('td');
+                if (!buttonCell) {
+                    window.log(`❌ Could not find button cell for product: ${productKey}`);
+                    return;
+                }
+                
+                // Show loading state
+                buttonCell.innerHTML = `
+                    <div style="text-align: center; padding: 10px;">
+                        <div style="display: inline-block; width: 16px; height: 16px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <div style="font-size: 0.8rem; color: #666; margin-top: 4px;">Loading...</div>
+                    </div>
+                `;
+                
+                // Fetch product info for each ASIN
+                const alternatesWithInfo = [];
+                for (const asin of asins) {
+                    try {
+                        const productInfo = await this.fetchProductInfoFromASIN(asin);
+                        alternatesWithInfo.push(productInfo);
+                        
+                        // Store in global cache
+                        if (!window.PRODUCT_ALTERNATES_STORAGE[productKey]) {
+                            window.PRODUCT_ALTERNATES_STORAGE[productKey] = { productInfo: {} };
+                        }
+                        if (!window.PRODUCT_ALTERNATES_STORAGE[productKey].productInfo) {
+                            window.PRODUCT_ALTERNATES_STORAGE[productKey].productInfo = {};
+                        }
+                        window.PRODUCT_ALTERNATES_STORAGE[productKey].productInfo[asin] = productInfo;
+                    } catch (error) {
+                        window.log(`⚠️ Failed to fetch info for ${asin}, using fallback`);
+                        // Fallback to ASIN-only display
+                        alternatesWithInfo.push({ asin, name: asin, image: null });
+                    }
+                }
+                
+                // Replace button with alternates display
+                buttonCell.innerHTML = this.createAlternatesDisplay(alternatesWithInfo, productKey);
+                
+                // Add event listeners for remove buttons
+                buttonCell.querySelectorAll('.cqe-alternate-remove').forEach(removeBtn => {
+                    removeBtn.addEventListener('click', (e) => this.handleRemoveAlternateFromTable(e));
+                });
+                
+                // Add event listener for the new "Add Alternates" button
+                const newAddBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
+                if (newAddBtn && !newAddBtn.disabled) {
+                    newAddBtn.addEventListener('click', (e) => this.handleAddAlternatesFromTable(e));
+                }
+                
+                window.log(`✅ Successfully updated table with ${alternatesWithInfo.length} alternates`);
+                
+            } catch (error) {
+                window.log(`❌ Error updating table with alternates:`, error);
+            }
+        },
+        
+        // Handle remove alternate from table
+        handleRemoveAlternateFromTable: function(event) {
+            const removeBtn = event.target;
+            const asin = removeBtn.getAttribute('data-asin');
+            const productKey = removeBtn.getAttribute('data-product-key');
+            
+            window.log(`🗑️ Removing alternate ${asin} from table for product ${productKey}`);
+            
+            // Remove from storage
+            if (window.PRODUCT_ALTERNATES_STORAGE[productKey]) {
+                if (window.PRODUCT_ALTERNATES_STORAGE[productKey].manualAsins) {
+                    window.PRODUCT_ALTERNATES_STORAGE[productKey].manualAsins.delete(asin);
+                }
+                if (window.PRODUCT_ALTERNATES_STORAGE[productKey].selectedAlternates) {
+                    window.PRODUCT_ALTERNATES_STORAGE[productKey].selectedAlternates.delete(asin);
+                }
+                if (window.PRODUCT_ALTERNATES_STORAGE[productKey].productInfo) {
+                    delete window.PRODUCT_ALTERNATES_STORAGE[productKey].productInfo[asin];
+                }
+            }
+            
+            // Remove the item from display
+            const alternateItem = removeBtn.closest('.cqe-alternate-item');
+            if (alternateItem) {
+                alternateItem.remove();
+            }
+            
+            // Update the "Add Alternates" button state
+            const buttonCell = removeBtn.closest('td');
+            const remainingAlternates = buttonCell.querySelectorAll('.cqe-alternate-item').length;
+            const addBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
+            
+            if (addBtn && remainingAlternates < 3) {
+                addBtn.disabled = false;
+                addBtn.textContent = 'Add Alternates';
+                addBtn.style.cssText = 'font-size: 0.85rem; padding: 6px 12px; margin-top: 8px;';
+                
+                // Re-add click handler if it was disabled
+                if (!addBtn.onclick) {
+                    addBtn.addEventListener('click', (e) => this.handleAddAlternatesFromTable(e));
+                }
+            }
+            
+            // If no alternates left, replace with original button
+            if (remainingAlternates === 0) {
+                const originalProductData = this.getProductDataFromRow(buttonCell.closest('tr'));
+                if (originalProductData && window.CQE_MAIN) {
+                    buttonCell.innerHTML = `
+                        <button class="b-button cqe-add-alternates-btn" type="button" style="margin: 0.25rem; padding: 6px 12px; font-size: 0.85rem;">
+                            Add Alternates
+                        </button>
+                    `;
+                    const newBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
+                    newBtn.addEventListener('click', (e) => window.CQE_MAIN.handleAddAlternatesClick(e, originalProductData));
+                }
+            }
+        },
+        
+        // Handle add alternates from table (when alternates already exist)
+        handleAddAlternatesFromTable: function(event) {
+            const addBtn = event.target;
+            const productKey = addBtn.getAttribute('data-product-key');
+            
+            window.log(`➕ Opening modal to add more alternates for product: ${productKey}`);
+            
+            // Get product data from the table row
+            const tableRow = addBtn.closest('tr');
+            const productData = this.getProductDataFromRow(tableRow);
+            
+            if (productData && window.CQE_MAIN) {
+                // Add the product key for persistence
+                productData.rowKey = productKey;
+                window.CQE_MAIN.handleAddAlternatesClick(event, productData);
+            }
+        },
+        
+        // Helper function to get product data from table row
+        getProductDataFromRow: function(row) {
+            if (window.CQE_MAIN && window.CQE_MAIN.extractProductData) {
+                return window.CQE_MAIN.extractProductData(row);
+            }
+            return null;
+        },
         
         // Initialize modal functionality
         initializeModalFunctionality: function() {
@@ -580,6 +866,24 @@
                         if (summaryResult.success && summaryResult.summary) {
                             window.log('✅ Supplier summary generated successfully');
                             
+                            // REQUIREMENT 1: Print the summary received from the API to the console
+                            console.log('API Summary:', summaryResult.summary);
+                            console.log('Full API Response:', summaryResult);
+                            
+                            // REQUIREMENT 2: Store alternates data and update table
+                            const productKey = window.currentProductData?.id || window.currentProductData?.asin || window.currentProductData?.rowKey;
+                            if (productKey && payload.allAsins.length > 0) {
+                                // Store the alternates data for this product
+                                window.PRODUCT_ALTERNATES_STORAGE[productKey] = {
+                                    manualAsins: new Set(payload.manualAsins),
+                                    selectedAlternates: new Set(payload.selectedAlternates),
+                                    productInfo: {}
+                                };
+                                
+                                // Update the table display with alternates
+                                await this.updateTableWithAlternates(productKey, payload.allAsins);
+                            }
+                            
                             // Create detailed summary for user including AI-generated summary
                             let summary = 'Form submitted successfully!\n\n';
                             summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
@@ -747,6 +1051,9 @@
 
             // Initialize counter on page load
             updateCounterAndUI();
+            
+            // Update the display to show any existing alternates that were loaded
+            updateSelectedAlternatesDisplay();
             
             // Setup character count listeners
             setupCharacterCountListeners();
