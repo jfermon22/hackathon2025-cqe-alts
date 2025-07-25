@@ -693,8 +693,6 @@
                         contextParts.push(`<strong>ASIN:</strong> ${productData.asin}`);
                     } else if (productData.name && productData.name !== 'Unknown Product') {
                         contextParts.push(`<strong>Product:</strong> ${productData.name}`);
-                    } else {
-                        contextParts.push(`<strong>Product from table row</strong>`);
                     }
                     
                     if (productData.quantity) {

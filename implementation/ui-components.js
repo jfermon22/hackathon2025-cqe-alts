@@ -252,6 +252,10 @@
             
             // Update the button/message state based on remaining alternates
             const buttonCell = removeBtn.closest('td');
+            if (!buttonCell) {
+                window.log('❌ Could not find button cell for removal operation');
+                return;
+            }
             const remainingAlternates = buttonCell.querySelectorAll('.cqe-alternate-item').length;
             const addBtn = buttonCell.querySelector('.cqe-add-alternates-btn');
             const maxMessage = buttonCell.querySelector('.cqe-max-alternates-message');
@@ -532,7 +536,7 @@
                 
                 // Validate ASIN format first
                 if (!value) {
-                    showError('ASIN or ISBN required');
+                    showError('ASIN required');
                     return false;
                 }
                 
@@ -931,55 +935,104 @@
                                 await this.updateTableWithAlternates(productKey, payload.allAsins);
                             }
                             
-                            // Create detailed summary for user including AI-generated summary
-                            let summary = 'Form submitted successfully!\n\n';
-                            summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
-                            summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
-                            summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
-                            summary += 'AI-Generated Supplier Summary:\n';
-                            summary += '─'.repeat(50) + '\n';
-                            summary += summaryResult.summary + '\n';
-                            summary += '─'.repeat(50) + '\n\n';
-                            summary += 'Next steps:\n- Summary has been generated for suppliers\n- Product search will find additional matches\n- Suppliers will receive the AI-optimized context';
+                            // Store submission data for later use
+                            window.LAST_SUBMISSION_DATA = {
+                                timestamp: new Date().toISOString(),
+                                payload: payload,
+                                summaryResult: summaryResult,
+                                productKey: productKey
+                            };
                             
-                            alert(summary);
+                            // Log detailed summary to console only
+                            console.log('='.repeat(60));
+                            console.log('FORM SUBMISSION SUCCESSFUL');
+                            console.log('='.repeat(60));
+                            console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
+                            console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
+                            console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
+                            console.log('AI-Generated Supplier Summary:');
+                            console.log('─'.repeat(50));
+                            console.log(summaryResult.summary);
+                            console.log('─'.repeat(50));
+                            console.log('Next steps:');
+                            console.log('- Summary has been generated for suppliers');
+                            console.log('- Product search will find additional matches');
+                            console.log('- Suppliers will receive the AI-optimized context');
+                            console.log('='.repeat(60));
                         } else {
                             window.log('❌ Supplier summary generation failed, proceeding without AI summary');
                             
-                            // Fallback to original submission without AI summary
-                            let summary = 'Form submitted successfully!\n\n';
-                            summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
-                            summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
-                            summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
-                            summary += '⚠️ AI summary generation temporarily unavailable\n';
-                            summary += 'Next steps:\n- Form data will be processed manually\n- Product search will find additional matches\n- Suppliers will receive basic context';
+                            // Store submission data for later use
+                            window.LAST_SUBMISSION_DATA = {
+                                timestamp: new Date().toISOString(),
+                                payload: payload,
+                                summaryResult: null,
+                                productKey: productKey
+                            };
                             
-                            alert(summary);
+                            // Log to console only
+                            console.log('='.repeat(60));
+                            console.log('FORM SUBMISSION SUCCESSFUL (AI Summary Unavailable)');
+                            console.log('='.repeat(60));
+                            console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
+                            console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
+                            console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
+                            console.log('⚠️ AI summary generation temporarily unavailable');
+                            console.log('Next steps:');
+                            console.log('- Form data will be processed manually');
+                            console.log('- Product search will find additional matches');
+                            console.log('- Suppliers will receive basic context');
+                            console.log('='.repeat(60));
                         }
                     } else {
                         window.log('❌ Multi-function agent not available for supplier summary');
                         
-                        // Fallback to original submission
-                        let summary = 'Form submitted successfully!\n\n';
-                        summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
-                        summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
-                        summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
-                        summary += 'Next steps:\n- Form data will be processed\n- Product search will find additional matches\n- Suppliers will receive context';
+                        // Store submission data for later use
+                        window.LAST_SUBMISSION_DATA = {
+                            timestamp: new Date().toISOString(),
+                            payload: payload,
+                            summaryResult: null,
+                            productKey: productKey
+                        };
                         
-                        alert(summary);
+                        // Log to console only
+                        console.log('='.repeat(60));
+                        console.log('FORM SUBMISSION SUCCESSFUL (Agent Unavailable)');
+                        console.log('='.repeat(60));
+                        console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
+                        console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
+                        console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
+                        console.log('Next steps:');
+                        console.log('- Form data will be processed');
+                        console.log('- Product search will find additional matches');
+                        console.log('- Suppliers will receive context');
+                        console.log('='.repeat(60));
                     }
                 } catch (error) {
                     window.log('❌ Error in supplier summary generation:', error);
                     
-                    // Show error but still allow submission
-                    let summary = 'Form submitted with warnings!\n\n';
-                    summary += `Manual ASINs (${payload.manualAsins.length}): ${payload.manualAsins.join(', ') || 'None'}\n`;
-                    summary += `Selected Alternates (${payload.selectedAlternates.length}): ${payload.selectedAlternates.join(', ') || 'None'}\n`;
-                    summary += `Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}\n\n`;
-                    summary += `⚠️ AI processing error: ${error.message}\n`;
-                    summary += 'Next steps:\n- Form data will be processed manually\n- Product search will find additional matches\n- Suppliers will receive basic context';
+                    // Store submission data for later use
+                    window.LAST_SUBMISSION_DATA = {
+                        timestamp: new Date().toISOString(),
+                        payload: payload,
+                        summaryResult: null,
+                        productKey: productKey,
+                        error: error.message
+                    };
                     
-                    alert(summary);
+                    // Log error to console only
+                    console.log('='.repeat(60));
+                    console.log('FORM SUBMISSION WITH WARNINGS');
+                    console.log('='.repeat(60));
+                    console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
+                    console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
+                    console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
+                    console.log(`⚠️ AI processing error: ${error.message}`);
+                    console.log('Next steps:');
+                    console.log('- Form data will be processed manually');
+                    console.log('- Product search will find additional matches');
+                    console.log('- Suppliers will receive basic context');
+                    console.log('='.repeat(60));
                 } finally {
                     // Restore button state
                     if (submitBtn) {
