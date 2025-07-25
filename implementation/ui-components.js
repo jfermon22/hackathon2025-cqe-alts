@@ -36,6 +36,63 @@
             const addAsinBtn = document.getElementById('cqe-add-asin-btn');
             const limitWarning = document.getElementById('cqe-limit-warning');
             
+            // Validate data structures
+            const validateDataStructures = () => {
+                if (!(this.manualAsins instanceof Set)) {
+                    console.warn('[CQE Alternates] Reinitializing manualAsins Set');
+                    this.manualAsins = new Set();
+                }
+                if (!(this.selectedAlternates instanceof Set)) {
+                    console.warn('[CQE Alternates] Reinitializing selectedAlternates Set');
+                    this.selectedAlternates = new Set();
+                }
+            };
+            
+            // Call validation
+            validateDataStructures();
+            
+            // Event delegation for remove buttons
+            if (asinList) {
+                // Remove existing listener to prevent duplicates
+                if (this.handleRemoveClick) {
+                    asinList.removeEventListener('click', this.handleRemoveClick);
+                }
+                
+                this.handleRemoveClick = (event) => {
+                    if (event.target.classList.contains('remove-btn')) {
+                        const li = event.target.closest('li');
+                        if (!li) return;
+                        
+                        const asinText = li.querySelector('.asin-text')?.textContent;
+                        if (!asinText) return;
+                        
+                        const isManual = li.classList.contains('manual-entry');
+                        
+                        console.log(`[CQE Alternates] 🗑️ Removing ${isManual ? 'manual' : 'selected'} ASIN:`, asinText);
+                        
+                        // Update data structures
+                        if (isManual) {
+                            this.manualAsins.delete(asinText);
+                        } else {
+                            this.selectedAlternates.delete(asinText);
+                            // Update alternate tiles to remove selection
+                            document.querySelectorAll(`.alternate-tile[data-asin="${asinText}"]`)
+                                .forEach(tile => tile.classList.remove('selected'));
+                        }
+                        
+                        // Remove from DOM
+                        li.remove();
+                        
+                        // Update counter and UI state
+                        updateCounterAndUI();
+                        
+                        console.log('[CQE Alternates] ✅ ASIN removed successfully');
+                    }
+                };
+                
+                asinList.addEventListener('click', this.handleRemoveClick);
+            }
+            
             // Mock product data for demonstration
             const mockProducts = [
                 {
@@ -198,7 +255,7 @@
                             <span class="asin-text">${value}</span>
                             <span class="cqe-asin-type-label manual-label">Customer Supplied</span>
                         </div>
-                        <button class="remove-btn" onclick="(function(asin) { console.log('[CQE Alternates] 🗑️ Removing manual ASIN:', asin); try { var li = event.target.closest('li'); if (li) { li.remove(); } if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins) { window.UI_COMPONENTS.manualAsins.delete(asin); var counter = document.getElementById('cqe-asin-counter'); if (counter) { var totalCount = (window.UI_COMPONENTS.manualAsins ? window.UI_COMPONENTS.manualAsins.size : 0) + (window.UI_COMPONENTS.selectedAlternates ? window.UI_COMPONENTS.selectedAlternates.size : 0); counter.textContent = '(' + totalCount + '/3)'; } } console.log('[CQE Alternates] ✅ Manual ASIN removed successfully'); } catch(e) { console.error('[CQE Alternates] ❌ Removal error:', e); } })('${value}')" title="Remove">×</button>
+                        <button class="remove-btn" title="Remove">×</button>
                     `;
                     asinList.appendChild(li);
                 });
@@ -214,7 +271,7 @@
                             <span class="cqe-asin-type-label alternate-label">Amazon Suggested</span>
                             ${product && product.name ? `<div style="font-size: 0.8rem; color: #666; margin-top: 2px;">${product.name}</div>` : ''}
                         </div>
-                        <button class="remove-btn" onclick="(function(asin) { console.log('[CQE Alternates] 🗑️ Removing selected alternate:', asin); try { var li = event.target.closest('li'); if (li) { li.remove(); } if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates) { window.UI_COMPONENTS.selectedAlternates.delete(asin); var counter = document.getElementById('cqe-asin-counter'); if (counter) { var totalCount = (window.UI_COMPONENTS.manualAsins ? window.UI_COMPONENTS.manualAsins.size : 0) + (window.UI_COMPONENTS.selectedAlternates ? window.UI_COMPONENTS.selectedAlternates.size : 0); counter.textContent = '(' + totalCount + '/3)'; } var tiles = document.querySelectorAll('.alternate-tile[data-asin=\"' + asin + '\"]'); tiles.forEach(function(tile) { tile.classList.remove('selected'); }); } console.log('[CQE Alternates] ✅ Selected alternate removed successfully'); } catch(e) { console.error('[CQE Alternates] ❌ Removal error:', e); } })('${asin}')" title="Remove">×</button>
+                        <button class="remove-btn" title="Remove">×</button>
                     `;
                     asinList.appendChild(li);
                 });
@@ -704,84 +761,6 @@
     window.log('UI Components module loaded');
 })();
 
-// Global functions for remove buttons (called from HTML onclick)
-// These MUST be outside the IIFE to be accessible globally
-window.cqeRemoveSelectedAlternate = function(asin) {
-    console.log('[CQE Alternates] 🗑️ cqeRemoveSelectedAlternate called with ASIN:', asin);
-    console.log('[CQE Alternates] 🔍 Function context check:', {
-        'window.UI_COMPONENTS exists': !!window.UI_COMPONENTS,
-        'selectedAlternates exists': !!(window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates),
-        'ASIN in set': !!(window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin))
-    });
-    
-    window.log('Removing selected alternate:', asin);
-    if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin)) {
-        window.UI_COMPONENTS.selectedAlternates.delete(asin);
-        // Re-initialize to update display
-        window.UI_COMPONENTS.initializeModalFunctionality();
-        window.log('Selected alternate removed:', asin);
-        console.log('[CQE Alternates] ✅ Selected alternate successfully removed');
-    } else {
-        console.error('[CQE Alternates] ❌ Could not remove selected alternate - missing dependencies');
-    }
-};
-
-window.cqeRemoveManualASIN = function(asin) {
-    console.log('[CQE Alternates] 🗑️ cqeRemoveManualASIN called with ASIN:', asin);
-    console.log('[CQE Alternates] 🔍 Function context check:', {
-        'window.UI_COMPONENTS exists': !!window.UI_COMPONENTS,
-        'manualAsins exists': !!(window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins),
-        'ASIN in set': !!(window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin))
-    });
-    
-    window.log('Removing manual ASIN:', asin);
-    if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin)) {
-        window.UI_COMPONENTS.manualAsins.delete(asin);
-        // Re-initialize to update display
-        window.UI_COMPONENTS.initializeModalFunctionality();
-        window.log('Manual ASIN removed:', asin);
-        console.log('[CQE Alternates] ✅ Manual ASIN successfully removed');
-    } else {
-        console.error('[CQE Alternates] ❌ Could not remove manual ASIN - missing dependencies');
-    }
-};
-
-// Function to ensure global functions are always available
-window.ensureCQEGlobalFunctions = function() {
-    console.log('[CQE Alternates] 🔧 Ensuring global functions are available...');
-    
-    const functionsStatus = {
-        cqeRemoveManualASIN: typeof window.cqeRemoveManualASIN,
-        cqeRemoveSelectedAlternate: typeof window.cqeRemoveSelectedAlternate
-    };
-    
-    console.log('[CQE Alternates] 📊 Global functions status:', functionsStatus);
-    
-    // If functions are missing, recreate them
-    if (typeof window.cqeRemoveManualASIN !== 'function') {
-        console.log('[CQE Alternates] 🔧 Recreating cqeRemoveManualASIN...');
-        window.cqeRemoveManualASIN = function(asin) {
-            console.log('[CQE Alternates] 🗑️ [RECREATED] cqeRemoveManualASIN called with ASIN:', asin);
-            if (window.UI_COMPONENTS && window.UI_COMPONENTS.manualAsins && window.UI_COMPONENTS.manualAsins.has(asin)) {
-                window.UI_COMPONENTS.manualAsins.delete(asin);
-                window.UI_COMPONENTS.initializeModalFunctionality();
-                console.log('[CQE Alternates] ✅ [RECREATED] Manual ASIN successfully removed');
-            }
-        };
-    }
-    
-    if (typeof window.cqeRemoveSelectedAlternate !== 'function') {
-        console.log('[CQE Alternates] 🔧 Recreating cqeRemoveSelectedAlternate...');
-        window.cqeRemoveSelectedAlternate = function(asin) {
-            console.log('[CQE Alternates] 🗑️ [RECREATED] cqeRemoveSelectedAlternate called with ASIN:', asin);
-            if (window.UI_COMPONENTS && window.UI_COMPONENTS.selectedAlternates && window.UI_COMPONENTS.selectedAlternates.has(asin)) {
-                window.UI_COMPONENTS.selectedAlternates.delete(asin);
-                window.UI_COMPONENTS.initializeModalFunctionality();
-                console.log('[CQE Alternates] ✅ [RECREATED] Selected alternate successfully removed');
-            }
-        };
-    }
-    
-    console.log('[CQE Alternates] ✅ Global functions ensured');
-    return functionsStatus;
-};
+// Note: Global functions for remove buttons have been replaced with event delegation
+// The remove functionality is now handled by the handleRemoveClick event listener
+// in the initializeModalFunctionality function above.
