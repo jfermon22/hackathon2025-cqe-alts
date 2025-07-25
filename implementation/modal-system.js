@@ -64,9 +64,19 @@
                             <div class="cqe-form-group">
                                 <div class="cqe-section-header">
                                     Alternates Information Form
-                                    <button data-testid="alternates-info-popover-trigger" type="button" class="cqe-tooltip-btn" aria-expanded="false" title="Providing additional information about your intent and key attributes of your requested product will help improve suppliers' ability to respond with potential alternates.&#10;&#10;⚠️ Please do not include any personal identifying information. Any PII will be automatically removed and not sent to suppliers.">
-                                        <div class="b-alert b-info b-inline" role="alert"></div>
-                                    </button>
+                                    <div class="b-mt-small b-popover floating b-right b-hover" data-testid="alternates-info-popover-container">
+                                        <button data-testid="alternates-info-popover-trigger" type="button" aria-expanded="false">
+                                            <div class="b-alert b-info b-inline" role="alert"></div>
+                                        </button>
+                                        <div class="b-content" tabindex="-1" style="position: absolute; visibility: hidden; max-width: 276px;">
+                                            <section class="b-body">
+                                                Providing additional information about your intent and key attributes of your requested product will help improve suppliers' ability to respond with potential alternates.
+                                                <br><br>
+                                                ⚠️ Please do not include any personal identifying information. Any PII will be automatically removed and not sent to suppliers.
+                                            </section>
+                                            <div class="floating-arrow"></div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="cqe-form-field">
@@ -228,18 +238,23 @@
                         margin-bottom: 0;
                     }
                     
-                    /* Amazon-style tooltip button */
-                    .cqe-tooltip-btn {
+                    /* Amazon-style popover */
+                    .b-popover {
+                        position: relative;
+                        display: inline-block;
+                        margin-left: 8px;
+                    }
+                    
+                    .b-popover button {
                         background: none;
                         border: none;
                         padding: 0;
-                        margin-left: 8px;
                         cursor: pointer;
                         display: inline-block;
                         vertical-align: middle;
                     }
                     
-                    .cqe-tooltip-btn .b-alert.b-info.b-inline {
+                    .b-popover .b-alert.b-info.b-inline {
                         width: 16px;
                         height: 16px;
                         border-radius: 50%;
@@ -250,7 +265,7 @@
                         margin: 0;
                     }
                     
-                    .cqe-tooltip-btn .b-alert.b-info.b-inline::before {
+                    .b-popover .b-alert.b-info.b-inline::before {
                         content: "i";
                         color: white;
                         font-size: 12px;
@@ -263,9 +278,53 @@
                         line-height: 1;
                     }
                     
-                    .cqe-tooltip-btn:hover .b-alert.b-info.b-inline {
+                    .b-popover button:hover .b-alert.b-info.b-inline {
                         background-color: #005a6b;
                         border-color: #005a6b;
+                    }
+                    
+                    .b-popover .b-content {
+                        background: white;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                        padding: 0;
+                        z-index: 1001;
+                        width: max-content;
+                    }
+                    
+                    .b-popover .b-body {
+                        padding: 12px 16px;
+                        font-size: 0.9rem;
+                        line-height: 1.4;
+                        color: #333;
+                    }
+                    
+                    .b-popover .floating-arrow {
+                        position: absolute;
+                        width: 0;
+                        height: 0;
+                        border-left: 8px solid transparent;
+                        border-right: 8px solid transparent;
+                        border-bottom: 8px solid white;
+                        top: -8px;
+                        left: 16px;
+                    }
+                    
+                    .b-popover .floating-arrow::before {
+                        content: '';
+                        position: absolute;
+                        width: 0;
+                        height: 0;
+                        border-left: 9px solid transparent;
+                        border-right: 9px solid transparent;
+                        border-bottom: 9px solid #ddd;
+                        top: -1px;
+                        left: -9px;
+                    }
+                    
+                    .b-popover.b-hover:hover .b-content {
+                        visibility: visible !important;
                     }
                     
                     .cqe-section-header {

@@ -349,9 +349,17 @@
                 container.innerHTML = `
                     <div class="cqe-section-header">
                         Select Suggested Alternates
-                        <button data-testid="select-alternates-popover-trigger" type="button" class="cqe-tooltip-btn" aria-expanded="false" title="Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used)">
-                            <div class="b-alert b-info b-inline" role="alert"></div>
-                        </button>
+                        <div class="b-mt-small b-popover floating b-right b-hover" data-testid="select-alternates-popover-container">
+                            <button data-testid="select-alternates-popover-trigger" type="button" aria-expanded="false">
+                                <div class="b-alert b-info b-inline" role="alert"></div>
+                            </button>
+                            <div class="b-content" tabindex="-1" style="position: absolute; visibility: hidden; max-width: 276px;">
+                                <section class="b-body">
+                                    Click on alternates below to select them for inclusion in your request (${getTotalAlternatesCount()}/${MAX_ALTERNATES} used).
+                                </section>
+                                <div class="floating-arrow"></div>
+                            </div>
+                        </div>
                     </div>
                 `;
                 
