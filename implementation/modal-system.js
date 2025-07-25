@@ -607,10 +607,14 @@
             // Store product data globally for search module access
             window.currentProductData = productData;
             
-            // Set the original ASIN in UI_COMPONENTS to prevent adding it as alternate
+            // Set the original ASIN in UI_COMPONENTS to prevent adding it as alternate (if available)
             if (window.UI_COMPONENTS && productData && productData.asin) {
                 window.UI_COMPONENTS.originalAsin = productData.asin.toUpperCase();
                 window.log('Original ASIN set for validation:', window.UI_COMPONENTS.originalAsin);
+            } else if (window.UI_COMPONENTS) {
+                // Clear any previous ASIN if no ASIN is available for this product
+                window.UI_COMPONENTS.originalAsin = null;
+                window.log('No ASIN available for this product, cleared original ASIN validation');
             }
             
             // Update product context with enhanced display
@@ -628,21 +632,29 @@
                             <div>
                                 <div style="font-weight: 600; margin-bottom: 4px; color: #232f3e;">${productData.name}</div>
                                 <div style="font-size: 0.9rem; color: #666;">
-                                    <strong>ASIN:</strong> ${productData.asin}
+                                    ${productData.asin ? `<strong>ASIN:</strong> ${productData.asin}` : '<strong>Product from table row</strong>'}
                                     ${productData.quantity ? ` | <strong>Quantity:</strong> ${productData.quantity}` : ''}
                                 </div>
                             </div>
                         </div>
                     `;
                 } else {
-                    // Fallback to simple display (legacy behavior)
+                    // Fallback to simple display (legacy behavior or no product info)
+                    let contextParts = [];
+                    
                     if (productData.asin) {
-                        contextHTML += `<strong>ASIN:</strong> ${productData.asin}`;
+                        contextParts.push(`<strong>ASIN:</strong> ${productData.asin}`);
+                    } else if (productData.name && productData.name !== 'Unknown Product') {
+                        contextParts.push(`<strong>Product:</strong> ${productData.name}`);
+                    } else {
+                        contextParts.push(`<strong>Product from table row</strong>`);
                     }
                     
                     if (productData.quantity) {
-                        contextHTML += ` | <strong>Quantity:</strong> ${productData.quantity}`;
+                        contextParts.push(`<strong>Quantity:</strong> ${productData.quantity}`);
                     }
+                    
+                    contextHTML = contextParts.join(' | ');
                 }
                 
                 contextDiv.innerHTML = contextHTML;

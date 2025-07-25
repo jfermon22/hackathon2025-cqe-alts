@@ -188,13 +188,7 @@
             if (productData) {
                 window.log('Using product data from table row:', productData);
                 
-                // Validate that we have essential data
-                if (!productData.asin) {
-                    alert('Could not extract ASIN from this product row. Please try again or contact support.');
-                    return;
-                }
-                
-                // Open modal interface with table product data
+                // Open modal interface with table product data (no ASIN validation required)
                 if (window.MODAL_SYSTEM) {
                     window.MODAL_SYSTEM.openModal(productData);
                     
