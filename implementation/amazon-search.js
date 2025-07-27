@@ -187,6 +187,12 @@
                 const resultItems = doc.querySelectorAll('div[role="listitem"][data-asin]');
                 window.log(`📋 Found ${resultItems.length} potential result items`);
                 
+                // Get original ASIN to filter out
+                const originalAsin = window.UI_COMPONENTS?.originalAsin || window.currentProductData?.asin;
+                if (originalAsin) {
+                    window.log(`🚫 Will filter out original ASIN: ${originalAsin}`);
+                }
+                
                 const allResults = [];
                 
                 // Extract all non-sponsored results from the page
@@ -203,28 +209,30 @@
                     const result = this.extractProductData(item);
                     
                     if (result) {
+                        // Filter out original ASIN if it matches
+                        if (originalAsin && result.asin.toUpperCase() === originalAsin.toUpperCase()) {
+                            window.log(`🚫 Filtering out original ASIN: ${result.asin}`);
+                            continue;
+                        }
+                        
                         allResults.push(result);
                         window.log(`✅ Extracted product ${allResults.length}:`, result.name.substring(0, 50) + '...');
                     }
                 }
                 
-                window.log(`📦 Total non-sponsored results found: ${allResults.length}`);
+                window.log(`📦 Total valid results found (excluding original ASIN): ${allResults.length}`);
                 
-                // Get the top 4 results to return
-                const searchConfig = window.SEARCH_CONFIG || { MAX_RESULTS: 4 };
-                const topResults = allResults.slice(0, searchConfig.MAX_RESULTS);
-                
-                // Log the remaining results to console
-                if (allResults.length > searchConfig.MAX_RESULTS) {
-                    const remainingResults = allResults.slice(searchConfig.MAX_RESULTS);
-                    window.log(`📋 Additional ${remainingResults.length} results (not returned but logged for reference):`);
-                    remainingResults.forEach((result, index) => {
-                        window.log(`   ${index + searchConfig.MAX_RESULTS + 1}. ${result.name} (ASIN: ${result.asin})`);
+                // Return ALL results, not just top 4 - let UI handle display logic
+                // Log the results to console for reference
+                if (allResults.length > 0) {
+                    window.log(`📋 All ${allResults.length} results available for display:`);
+                    allResults.forEach((result, index) => {
+                        window.log(`   ${index + 1}. ${result.name} (ASIN: ${result.asin})`);
                     });
                 }
                 
-                window.log(`🎯 Returning top ${topResults.length} search results`);
-                return topResults;
+                window.log(`🎯 Returning all ${allResults.length} search results for queue management`);
+                return allResults;
                 
             } catch (error) {
                 window.log('❌ Error parsing search results:', error);

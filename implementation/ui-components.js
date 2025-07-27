@@ -958,9 +958,15 @@
                 const container = document.getElementById('cqe-suggested-alternates');
                 if (!container) return;
                 
-                // Store all results for replacement functionality
-                window.allSearchResults = results;
-                window.displayedResultIndices = new Set();
+                // Initialize queue management system
+                window.searchResultsQueue = {
+                    allResults: results,
+                    declinedResults: new Set(), // Track declined ASINs for analytics
+                    currentlyDisplayed: [], // Track the 4 currently displayed results
+                    nextAvailableIndex: 0 // Track next result to show
+                };
+                
+                window.log(`🎯 Initialized queue with ${results.length} total results`);
                 
                 container.innerHTML = `
                     <div class="cqe-section-header">
@@ -979,13 +985,8 @@
                     </div>
                 `;
                 
-                // Display first 4 results
-                const resultsToShow = results.slice(0, 4);
-                resultsToShow.forEach((product, index) => {
-                    window.displayedResultIndices.add(index);
-                    const tile = this.createProductTile(product, index);
-                    container.appendChild(tile);
-                });
+                // Display first 4 available results
+                this.displayNextAvailableResults(container, 4);
                 
                 // Update UI state for tiles
                 updateCounterAndUI();
@@ -1620,8 +1621,51 @@
             closeModal();
         },
 
+        // Display next available results from the queue
+        displayNextAvailableResults: function(container, maxResults = 4) {
+            const queue = window.searchResultsQueue;
+            if (!queue || !queue.allResults) {
+                window.log('❌ No search results queue available');
+                return;
+            }
+            
+            window.log(`🎯 Displaying next ${maxResults} available results`);
+            
+            // Clear current display
+            queue.currentlyDisplayed = [];
+            
+            // Find next available results (not declined)
+            let displayedCount = 0;
+            for (let i = 0; i < queue.allResults.length && displayedCount < maxResults; i++) {
+                const product = queue.allResults[i];
+                
+                // Skip if this product has been declined
+                if (queue.declinedResults.has(product.asin)) {
+                    continue;
+                }
+                
+                // Create and add tile
+                const tile = this.createProductTile(product, i);
+                container.appendChild(tile);
+                
+                // Track this result as currently displayed
+                queue.currentlyDisplayed.push({
+                    product: product,
+                    originalIndex: i,
+                    displayPosition: displayedCount
+                });
+                
+                displayedCount++;
+                window.log(`📋 Displayed result ${displayedCount}: ${product.name.substring(0, 50)}... (ASIN: ${product.asin})`);
+            }
+            
+            window.log(`✅ Displayed ${displayedCount} results. ${queue.declinedResults.size} results declined.`);
+        },
+
         // Replace declined product with next available from search results
         replaceDeclinedProduct: function(asin, index) {
+            window.log(`🔄 Processing decline for ASIN: ${asin} at index: ${index}`);
+            
             // Find the tile to remove
             const tileToRemove = document.querySelector(`.alternate-tile-enhanced[data-asin="${asin}"]`);
             if (!tileToRemove) {
@@ -1632,39 +1676,61 @@
             // Remove from selected alternates if it was selected
             if (this.selectedAlternates.has(asin)) {
                 this.selectedAlternates.delete(asin);
+                window.log(`🗑️ Removed ${asin} from selected alternates`);
                 this.updateSelectedAlternatesDisplay();
             }
             
-            // Find next available product from all search results
-            const allResults = window.allSearchResults || [];
-            const displayedIndices = window.displayedResultIndices || new Set();
+            // Get queue reference
+            const queue = window.searchResultsQueue;
+            if (!queue) {
+                window.log('❌ No search results queue available');
+                return;
+            }
             
-            // Find next unused result
+            // Mark this ASIN as declined for analytics
+            queue.declinedResults.add(asin);
+            window.log(`📊 Added ${asin} to declined results for analytics`);
+            
+            // Remove the declined product from currently displayed
+            queue.currentlyDisplayed = queue.currentlyDisplayed.filter(item => item.product.asin !== asin);
+            
+            // Find next available product (not declined, not currently displayed)
+            const currentlyDisplayedAsins = new Set(queue.currentlyDisplayed.map(item => item.product.asin));
             let nextProduct = null;
             let nextIndex = -1;
             
-            for (let i = 0; i < allResults.length; i++) {
-                if (!displayedIndices.has(i)) {
-                    nextProduct = allResults[i];
-                    nextIndex = i;
-                    break;
+            for (let i = 0; i < queue.allResults.length; i++) {
+                const product = queue.allResults[i];
+                
+                // Skip if declined or currently displayed
+                if (queue.declinedResults.has(product.asin) || currentlyDisplayedAsins.has(product.asin)) {
+                    continue;
                 }
+                
+                nextProduct = product;
+                nextIndex = i;
+                break;
             }
             
             if (nextProduct) {
-                // Replace with next product
-                window.displayedResultIndices.delete(index);
-                window.displayedResultIndices.add(nextIndex);
-                
+                // Replace with next available product
                 const newTile = this.createProductTile(nextProduct, nextIndex);
                 tileToRemove.parentNode.replaceChild(newTile, tileToRemove);
                 
+                // Update currently displayed tracking
+                queue.currentlyDisplayed.push({
+                    product: nextProduct,
+                    originalIndex: nextIndex,
+                    displayPosition: queue.currentlyDisplayed.length
+                });
+                
                 window.log(`✅ Replaced declined product ${asin} with ${nextProduct.asin}`);
+                window.log(`📋 Queue status: ${queue.currentlyDisplayed.length} displayed, ${queue.declinedResults.size} declined, ${queue.allResults.length} total`);
             } else {
                 // No more products available, just remove the tile
                 tileToRemove.remove();
-                window.displayedResultIndices.delete(index);
                 window.log(`🔚 No more products available, removed tile for ${asin}`);
+                window.log(`📋 Final queue status: ${queue.currentlyDisplayed.length} displayed, ${queue.declinedResults.size} declined, ${queue.allResults.length} total`);
             }
             
             // Update UI state
