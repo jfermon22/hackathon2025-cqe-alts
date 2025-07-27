@@ -192,6 +192,14 @@
                 const searchConfig = window.SEARCH_CONFIG || { MAX_RESULTS: 4 };
                 for (let i = 0; i < resultItems.length && results.length < searchConfig.MAX_RESULTS; i++) {
                     const item = resultItems[i];
+                    
+                    // Check if this is a sponsored result and skip it
+                    const sponsoredElement = item.querySelector('span[aria-label="View Sponsored information or leave ad feedback"].a-color-secondary');
+                    if (sponsoredElement && sponsoredElement.textContent.trim() === 'Sponsored') {
+                        window.log('🚫 Skipping sponsored result');
+                        continue;
+                    }
+                    
                     const result = this.extractProductData(item);
                     
                     if (result) {
