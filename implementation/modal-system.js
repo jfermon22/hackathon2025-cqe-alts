@@ -629,6 +629,283 @@
                         background-color: #fff5f5 !important;
                         box-shadow: none !important;
                     }
+
+                    /* Enhanced product tiles with view and decline buttons */
+                    .alternate-tile-enhanced {
+                        display: flex;
+                        align-items: center;
+                        border: 2px solid #e9ecef;
+                        border-radius: 6px;
+                        margin-bottom: 10px;
+                        padding: 12px;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        background: white;
+                        position: relative;
+                    }
+                    
+                    .alternate-tile-enhanced:hover {
+                        border-color: #ff9900;
+                        background-color: #fff8f0;
+                    }
+                    
+                    .alternate-tile-enhanced.selected {
+                        background-color: #fff8f0;
+                        border-color: #ff9900;
+                    }
+                    
+                    .alternate-tile-enhanced img {
+                        width: 60px;
+                        height: 60px;
+                        object-fit: cover;
+                        margin-right: 15px;
+                        border-radius: 4px;
+                        border: 1px solid #ddd;
+                    }
+                    
+                    .alternate-tile-enhanced .product-info {
+                        flex: 1;
+                        cursor: pointer;
+                    }
+                    
+                    .alternate-tile-enhanced .product-name {
+                        font-weight: 600;
+                        margin-bottom: 4px;
+                        color: #232f3e;
+                    }
+                    
+                    .alternate-tile-enhanced .product-description {
+                        color: #666;
+                        margin-bottom: 4px;
+                        font-size: 0.9rem;
+                    }
+                    
+                    .alternate-tile-enhanced .product-asin {
+                        font-size: 0.8rem;
+                        color: #999;
+                        font-family: monospace;
+                    }
+
+                    .alternate-tile-enhanced .product-actions {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        margin-left: 12px;
+                    }
+
+                    .alternate-tile-enhanced .view-btn,
+                    .alternate-tile-enhanced .decline-btn {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 8px 12px;
+                        border: none;
+                        border-radius: 4px;
+                        font-size: 0.85rem;
+                        font-weight: 500;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        min-width: 80px;
+                        justify-content: center;
+                    }
+
+                    .alternate-tile-enhanced .view-btn {
+                        background-color: #007185;
+                        color: white;
+                    }
+
+                    .alternate-tile-enhanced .view-btn:hover {
+                        background-color: #005a6b;
+                    }
+
+                    .alternate-tile-enhanced .decline-btn {
+                        background-color: #dc3545;
+                        color: white;
+                    }
+
+                    .alternate-tile-enhanced .decline-btn:hover {
+                        background-color: #c82333;
+                    }
+
+                    /* Decline feedback modal styles */
+                    .decline-feedback-overlay {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.5);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 1001;
+                    }
+
+                    .decline-feedback-modal {
+                        background: white;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                        width: 500px;
+                        max-width: 90vw;
+                        max-height: 80vh;
+                        display: flex;
+                        flex-direction: column;
+                    }
+
+                    .decline-feedback-header {
+                        padding: 1rem 1.5rem;
+                        border-bottom: 1px solid #ddd;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        background: #f8f9fa;
+                    }
+
+                    .decline-feedback-header h4 {
+                        margin: 0;
+                        font-size: 1.1rem;
+                        font-weight: 600;
+                        color: #232f3e;
+                    }
+
+                    .decline-feedback-close {
+                        background: none;
+                        border: none;
+                        font-size: 1.5rem;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 30px;
+                        height: 30px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border-radius: 4px;
+                        color: #666;
+                    }
+
+                    .decline-feedback-close:hover {
+                        background: rgba(0, 0, 0, 0.1);
+                    }
+
+                    .decline-feedback-body {
+                        padding: 1.5rem;
+                        flex: 1;
+                        overflow-y: auto;
+                    }
+
+                    .decline-feedback-body p {
+                        margin: 0 0 1rem 0;
+                        color: #333;
+                    }
+
+                    .decline-reasons {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        margin-bottom: 1rem;
+                    }
+
+                    .decline-reason {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        cursor: pointer;
+                        padding: 8px;
+                        border-radius: 4px;
+                        transition: background-color 0.2s ease;
+                    }
+
+                    .decline-reason:hover {
+                        background-color: #f8f9fa;
+                    }
+
+                    .decline-reason input[type="checkbox"] {
+                        margin: 0;
+                        cursor: pointer;
+                    }
+
+                    .decline-reason span {
+                        color: #333;
+                        font-size: 0.9rem;
+                        cursor: pointer;
+                    }
+
+                    .other-reason-container {
+                        margin-top: 1rem;
+                        padding: 1rem;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        border: 1px solid #e9ecef;
+                    }
+
+                    .other-reason-container textarea {
+                        width: 100%;
+                        min-height: 80px;
+                        padding: 8px;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        font-size: 0.9rem;
+                        resize: vertical;
+                        font-family: inherit;
+                    }
+
+                    .other-reason-container .character-count {
+                        font-size: 0.75rem;
+                        color: #666;
+                        text-align: right;
+                        margin-top: 4px;
+                        font-family: monospace;
+                    }
+
+                    .decline-feedback-error {
+                        color: #dc3545;
+                        font-size: 0.9rem;
+                        padding: 8px 12px;
+                        background-color: #f8d7da;
+                        border: 1px solid #f5c6cb;
+                        border-radius: 4px;
+                        margin-top: 1rem;
+                    }
+
+                    .decline-feedback-actions {
+                        padding: 1rem 1.5rem;
+                        border-top: 1px solid #ddd;
+                        display: flex;
+                        gap: 12px;
+                        justify-content: flex-end;
+                    }
+
+                    .decline-feedback-submit,
+                    .decline-feedback-cancel {
+                        padding: 8px 16px;
+                        border-radius: 4px;
+                        font-size: 0.9rem;
+                        cursor: pointer;
+                        border: 1px solid;
+                        transition: all 0.2s ease;
+                    }
+
+                    .decline-feedback-submit {
+                        background-color: #007185;
+                        color: white;
+                        border-color: #007185;
+                    }
+
+                    .decline-feedback-submit:hover {
+                        background-color: #005a6b;
+                        border-color: #005a6b;
+                    }
+
+                    .decline-feedback-cancel {
+                        background-color: white;
+                        color: #666;
+                        border-color: #ddd;
+                    }
+
+                    .decline-feedback-cancel:hover {
+                        background-color: #f8f9fa;
+                        border-color: #999;
+                    }
                 </style>
             `;
             

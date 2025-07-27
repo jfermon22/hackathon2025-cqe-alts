@@ -958,6 +958,10 @@
                 const container = document.getElementById('cqe-suggested-alternates');
                 if (!container) return;
                 
+                // Store all results for replacement functionality
+                window.allSearchResults = results;
+                window.displayedResultIndices = new Set();
+                
                 container.innerHTML = `
                     <div class="cqe-section-header">
                         Select Suggested Alternates
@@ -975,27 +979,11 @@
                     </div>
                 `;
                 
-                results.forEach(product => {
-                    const tile = document.createElement('div');
-                    tile.className = 'alternate-tile';
-                    tile.dataset.asin = product.asin;
-                    
-                    // Check if already selected
-                    if (this.selectedAlternates.has(product.asin)) {
-                        tile.classList.add('selected');
-                    }
-                    
-                    tile.onclick = () => toggleAlternateSelection(product.asin, tile);
-                    
-                    tile.innerHTML = `
-                        <img src="${product.image}" alt="${product.name}" />
-                        <div class="product-info">
-                            <div class="product-name">${product.name}</div>
-                            <div class="product-description">${product.description}</div>
-                            <div class="product-asin">ASIN: ${product.asin}</div>
-                        </div>
-                    `;
-                    
+                // Display first 4 results
+                const resultsToShow = results.slice(0, 4);
+                resultsToShow.forEach((product, index) => {
+                    window.displayedResultIndices.add(index);
+                    const tile = this.createProductTile(product, index);
                     container.appendChild(tile);
                 });
                 
@@ -1415,6 +1403,358 @@
             updateAllCharacterCounts();
             
             window.log('Modal functionality initialized successfully');
+        },
+
+        // Create product tile with view and decline buttons
+        createProductTile: function(product, index) {
+            const tile = document.createElement('div');
+            tile.className = 'alternate-tile-enhanced';
+            tile.dataset.asin = product.asin;
+            tile.dataset.index = index;
+            
+            // Check if already selected
+            if (this.selectedAlternates.has(product.asin)) {
+                tile.classList.add('selected');
+            }
+            
+            tile.innerHTML = `
+                <img src="${product.image}" alt="${product.name}" />
+                <div class="product-info">
+                    <div class="product-name">${product.name}</div>
+                    <div class="product-description">${product.description}</div>
+                    <div class="product-asin">ASIN: ${product.asin}</div>
+                </div>
+                <div class="product-actions">
+                    <button class="view-btn" data-asin="${product.asin}" title="View product on Amazon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                        View
+                    </button>
+                    <button class="decline-btn" data-asin="${product.asin}" data-index="${index}" title="Decline this product">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                        Decline
+                    </button>
+                </div>
+            `;
+            
+            // Add click handler for selection (clicking on the main area, not buttons)
+            const productInfo = tile.querySelector('.product-info');
+            productInfo.onclick = () => this.toggleAlternateSelection(product.asin, tile);
+            
+            // Add click handlers for buttons
+            const viewBtn = tile.querySelector('.view-btn');
+            const declineBtn = tile.querySelector('.decline-btn');
+            
+            viewBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.handleViewProduct(product.asin);
+            };
+            
+            declineBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.handleDeclineProduct(product.asin, index);
+            };
+            
+            return tile;
+        },
+
+        // Handle view product button click
+        handleViewProduct: function(asin) {
+            const amazonUrl = `https://www.amazon.com/dp/${asin}`;
+            window.open(amazonUrl, '_blank');
+            window.log(`🔗 Opened product page for ASIN: ${asin}`);
+        },
+
+        // Handle decline product button click
+        handleDeclineProduct: function(asin, index) {
+            window.log(`👎 Declining product: ${asin} at index ${index}`);
+            this.showDeclineFeedbackModal(asin, index);
+        },
+
+        // Show decline feedback modal
+        showDeclineFeedbackModal: function(asin, index) {
+            // Create modal overlay
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'decline-feedback-overlay';
+            modalOverlay.innerHTML = `
+                <div class="decline-feedback-modal">
+                    <div class="decline-feedback-header">
+                        <h4>Why are you declining this product?</h4>
+                        <button class="decline-feedback-close">&times;</button>
+                    </div>
+                    <div class="decline-feedback-body">
+                        <p>Please select the reason(s) why this product doesn't meet your needs:</p>
+                        <div class="decline-reasons">
+                            <label class="decline-reason">
+                                <input type="checkbox" value="not-relevant" />
+                                <span>Not relevant to my needs</span>
+                            </label>
+                            <label class="decline-reason">
+                                <input type="checkbox" value="price-range" />
+                                <span>Not within my price range</span>
+                            </label>
+                            <label class="decline-reason">
+                                <input type="checkbox" value="missing-attributes" />
+                                <span>Doesn't have key attributes I need</span>
+                            </label>
+                            <label class="decline-reason">
+                                <input type="checkbox" value="quality-concerns" />
+                                <span>Quality or brand concerns</span>
+                            </label>
+                            <label class="decline-reason">
+                                <input type="checkbox" value="availability" />
+                                <span>Availability or shipping concerns</span>
+                            </label>
+                            <label class="decline-reason">
+                                <input type="checkbox" value="other" />
+                                <span>Other (please specify)</span>
+                            </label>
+                        </div>
+                        <div class="other-reason-container" style="display: none;">
+                            <textarea id="other-reason-text" placeholder="Please specify your reason..." maxlength="200"></textarea>
+                            <div class="character-count">0/200</div>
+                        </div>
+                        <div class="decline-feedback-error" style="display: none;"></div>
+                    </div>
+                    <div class="decline-feedback-actions">
+                        <button class="decline-feedback-submit">Submit Feedback</button>
+                        <button class="decline-feedback-cancel">Cancel</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modalOverlay);
+            
+            // Add event listeners
+            const closeBtn = modalOverlay.querySelector('.decline-feedback-close');
+            const cancelBtn = modalOverlay.querySelector('.decline-feedback-cancel');
+            const submitBtn = modalOverlay.querySelector('.decline-feedback-submit');
+            const otherCheckbox = modalOverlay.querySelector('input[value="other"]');
+            const otherContainer = modalOverlay.querySelector('.other-reason-container');
+            const otherTextarea = modalOverlay.querySelector('#other-reason-text');
+            const characterCount = modalOverlay.querySelector('.character-count');
+            
+            // Close modal handlers
+            const closeModal = () => {
+                document.body.removeChild(modalOverlay);
+            };
+            
+            closeBtn.onclick = closeModal;
+            cancelBtn.onclick = closeModal;
+            modalOverlay.onclick = (e) => {
+                if (e.target === modalOverlay) closeModal();
+            };
+            
+            // Show/hide other reason text area
+            otherCheckbox.onchange = () => {
+                if (otherCheckbox.checked) {
+                    otherContainer.style.display = 'block';
+                    otherTextarea.focus();
+                } else {
+                    otherContainer.style.display = 'none';
+                    otherTextarea.value = '';
+                    characterCount.textContent = '0/200';
+                }
+            };
+            
+            // Character count for other reason
+            otherTextarea.oninput = () => {
+                const length = otherTextarea.value.length;
+                characterCount.textContent = `${length}/200`;
+                if (length > 180) {
+                    characterCount.style.color = '#ff9800';
+                } else if (length >= 200) {
+                    characterCount.style.color = '#f44336';
+                } else {
+                    characterCount.style.color = '#666';
+                }
+            };
+            
+            // Submit feedback
+            submitBtn.onclick = () => {
+                this.submitDeclineFeedback(asin, index, modalOverlay, closeModal);
+            };
+        },
+
+        // Submit decline feedback
+        submitDeclineFeedback: function(asin, index, modalOverlay, closeModal) {
+            const checkboxes = modalOverlay.querySelectorAll('input[type="checkbox"]:checked');
+            const otherText = modalOverlay.querySelector('#other-reason-text').value.trim();
+            const errorDiv = modalOverlay.querySelector('.decline-feedback-error');
+            
+            // Validate at least one reason is selected
+            if (checkboxes.length === 0) {
+                errorDiv.textContent = 'Please select at least one reason for declining this product.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // Validate other reason text if "other" is selected
+            const otherSelected = Array.from(checkboxes).some(cb => cb.value === 'other');
+            if (otherSelected && !otherText) {
+                errorDiv.textContent = 'Please specify your reason in the text area.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // Collect feedback data
+            const reasons = Array.from(checkboxes).map(cb => cb.value);
+            const feedback = {
+                asin: asin,
+                reasons: reasons,
+                otherReason: otherSelected ? otherText : null,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Log feedback to console
+            console.log('Product Decline Feedback:', feedback);
+            window.log('👎 Product declined with feedback:', feedback);
+            
+            // Remove the product from display and replace with next available
+            this.replaceDeclinedProduct(asin, index);
+            
+            // Close modal
+            closeModal();
+        },
+
+        // Replace declined product with next available from search results
+        replaceDeclinedProduct: function(asin, index) {
+            // Find the tile to remove
+            const tileToRemove = document.querySelector(`.alternate-tile-enhanced[data-asin="${asin}"]`);
+            if (!tileToRemove) {
+                window.log('❌ Could not find tile to remove for ASIN:', asin);
+                return;
+            }
+            
+            // Remove from selected alternates if it was selected
+            if (this.selectedAlternates.has(asin)) {
+                this.selectedAlternates.delete(asin);
+                this.updateSelectedAlternatesDisplay();
+            }
+            
+            // Find next available product from all search results
+            const allResults = window.allSearchResults || [];
+            const displayedIndices = window.displayedResultIndices || new Set();
+            
+            // Find next unused result
+            let nextProduct = null;
+            let nextIndex = -1;
+            
+            for (let i = 0; i < allResults.length; i++) {
+                if (!displayedIndices.has(i)) {
+                    nextProduct = allResults[i];
+                    nextIndex = i;
+                    break;
+                }
+            }
+            
+            if (nextProduct) {
+                // Replace with next product
+                window.displayedResultIndices.delete(index);
+                window.displayedResultIndices.add(nextIndex);
+                
+                const newTile = this.createProductTile(nextProduct, nextIndex);
+                tileToRemove.parentNode.replaceChild(newTile, tileToRemove);
+                
+                window.log(`✅ Replaced declined product ${asin} with ${nextProduct.asin}`);
+            } else {
+                // No more products available, just remove the tile
+                tileToRemove.remove();
+                window.displayedResultIndices.delete(index);
+                window.log(`🔚 No more products available, removed tile for ${asin}`);
+            }
+            
+            // Update UI state
+            this.updateCounterAndUI();
+        },
+
+        // Toggle alternate selection (updated to work with new tile structure)
+        toggleAlternateSelection: function(asin, tile) {
+            // Check for duplicates across both lists
+            if (this.manualAsins.has(asin)) {
+                this.showError('This ASIN is already in your manual entries. Cannot select as alternate.');
+                return;
+            }
+            
+            // Check if this is the original requested ASIN
+            if (this.originalAsin && asin === this.originalAsin) {
+                this.showError('Cannot select the original requested ASIN as an alternate. Please choose a different product.');
+                return;
+            }
+            
+            if (tile.classList.contains('selected')) {
+                // Deselecting - always allowed
+                tile.classList.remove('selected');
+                this.selectedAlternates.delete(asin);
+            } else {
+                // Selecting - check limit
+                const MAX_ALTERNATES = window.UI_CONSTANTS ? window.UI_CONSTANTS.MAX_ALTERNATES : 3;
+                const totalCount = this.manualAsins.size + this.selectedAlternates.size;
+                
+                if (totalCount >= MAX_ALTERNATES) {
+                    this.showError(`Maximum of ${MAX_ALTERNATES} total alternates allowed. Remove some items to add more.`);
+                    return;
+                }
+                
+                tile.classList.add('selected');
+                this.selectedAlternates.add(asin);
+            }
+            
+            this.updateSelectedAlternatesDisplay();
+            this.updateCounterAndUI();
+        },
+
+        // Helper method to show error (reference to existing function)
+        showError: function(message) {
+            const asinError = document.getElementById('cqe-asin-error');
+            const asinInput = document.getElementById('cqe-asin-input');
+            
+            if (!asinError || !asinInput) return;
+            
+            // Add error styling to input field with red dotted border
+            asinInput.classList.add('is-error');
+            asinInput.setAttribute('aria-invalid', 'true');
+            asinInput.setAttribute('aria-describedby', 'cqe-asin-error');
+            asinInput.style.border = '2px dotted #dc3545';
+            asinInput.style.backgroundColor = '#fff5f5';
+            
+            // Show error message below input
+            asinError.textContent = message;
+            asinError.style.display = 'block';
+            asinError.setAttribute('role', 'alert');
+            asinError.classList.add('is-error');
+            
+            // Clear error after 5 seconds
+            setTimeout(() => {
+                if (asinInput) {
+                    asinInput.classList.remove('is-error');
+                    asinInput.removeAttribute('aria-invalid');
+                    asinInput.removeAttribute('aria-describedby');
+                    asinInput.style.border = '';
+                    asinInput.style.backgroundColor = '';
+                }
+                if (asinError) {
+                    asinError.style.display = 'none';
+                    asinError.classList.remove('is-error');
+                    asinError.textContent = '';
+                }
+            }, 5000);
+        },
+
+        // Helper methods for counter and display updates (references to existing functions)
+        updateCounterAndUI: function() {
+            // This will be called from the existing function in initializeModalFunctionality
+            const event = new CustomEvent('updateCounterAndUI');
+            document.dispatchEvent(event);
+        },
+
+        updateSelectedAlternatesDisplay: function() {
+            // This will be called from the existing function in initializeModalFunctionality
+            const event = new CustomEvent('updateSelectedAlternatesDisplay');
+            document.dispatchEvent(event);
         }
     };
     
