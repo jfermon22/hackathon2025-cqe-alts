@@ -1689,6 +1689,7 @@
                 // Deselecting - always allowed
                 tile.classList.remove('selected');
                 this.selectedAlternates.delete(asin);
+                window.log(`🔄 Deselected alternate: ${asin}`);
             } else {
                 // Selecting - check limit
                 const MAX_ALTERNATES = window.UI_CONSTANTS ? window.UI_CONSTANTS.MAX_ALTERNATES : 3;
@@ -1701,9 +1702,17 @@
                 
                 tile.classList.add('selected');
                 this.selectedAlternates.add(asin);
+                window.log(`✅ Selected alternate: ${asin}`);
             }
             
-            this.updateSelectedAlternatesDisplay();
+            // Force immediate display update
+            window.log(`🔄 Updating display after selection change. Selected alternates:`, Array.from(this.selectedAlternates));
+            this.updateSelectedAlternatesDisplay().then(() => {
+                window.log(`✅ Display update completed`);
+            }).catch(error => {
+                window.log(`❌ Display update failed:`, error);
+            });
+            
             this.updateCounterAndUI();
         },
 
