@@ -187,10 +187,10 @@
                 const resultItems = doc.querySelectorAll('div[role="listitem"][data-asin]');
                 window.log(`📋 Found ${resultItems.length} potential result items`);
                 
-                const results = [];
+                const allResults = [];
                 
-                const searchConfig = window.SEARCH_CONFIG || { MAX_RESULTS: 4 };
-                for (let i = 0; i < resultItems.length && results.length < searchConfig.MAX_RESULTS; i++) {
+                // Extract all non-sponsored results from the page
+                for (let i = 0; i < resultItems.length; i++) {
                     const item = resultItems[i];
                     
                     // Check if this is a sponsored result and skip it
@@ -203,13 +203,28 @@
                     const result = this.extractProductData(item);
                     
                     if (result) {
-                        results.push(result);
-                        window.log(`✅ Extracted product ${results.length}:`, result.name.substring(0, 50) + '...');
+                        allResults.push(result);
+                        window.log(`✅ Extracted product ${allResults.length}:`, result.name.substring(0, 50) + '...');
                     }
                 }
                 
-                window.log(`📦 Successfully parsed ${results.length} search results`);
-                return results;
+                window.log(`📦 Total non-sponsored results found: ${allResults.length}`);
+                
+                // Get the top 4 results to return
+                const searchConfig = window.SEARCH_CONFIG || { MAX_RESULTS: 4 };
+                const topResults = allResults.slice(0, searchConfig.MAX_RESULTS);
+                
+                // Log the remaining results to console
+                if (allResults.length > searchConfig.MAX_RESULTS) {
+                    const remainingResults = allResults.slice(searchConfig.MAX_RESULTS);
+                    window.log(`📋 Additional ${remainingResults.length} results (not returned but logged for reference):`);
+                    remainingResults.forEach((result, index) => {
+                        window.log(`   ${index + searchConfig.MAX_RESULTS + 1}. ${result.name} (ASIN: ${result.asin})`);
+                    });
+                }
+                
+                window.log(`🎯 Returning top ${topResults.length} search results`);
+                return topResults;
                 
             } catch (error) {
                 window.log('❌ Error parsing search results:', error);
