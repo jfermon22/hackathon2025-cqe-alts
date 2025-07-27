@@ -778,36 +778,37 @@
                         li.innerHTML = createLoadingTileHTML(asin, isManual);
                         window.log(`🔄 Loading new ASIN ${asin}`);
                         
-                        // Fetch product info asynchronously for manual ASINs
-                        if (isManual) {
-                            this.fetchProductInfoFromASIN(asin).then(productInfo => {
-                                // Cache the result
-                                this.productInfoCache.set(asin, productInfo);
-                                
-                                // Update the tile with fetched info
-                                li.innerHTML = createAsinTileHTML(asin, productInfo, isManual);
-                                window.log(`✅ Updated tile for ${asin} with fetched data`);
-                            }).catch(error => {
-                                // Cache error state
-                                const errorInfo = { asin, name: asin, image: '' };
-                                this.productInfoCache.set(asin, errorInfo);
-                                
-                                // Update with error state
-                                li.innerHTML = createAsinTileHTML(asin, errorInfo, isManual);
-                                window.log(`❌ Updated tile for ${asin} with error state`);
-                            });
-                        } else {
-                            // For selected alternates, use mock data immediately
-                            const product = mockProducts.find(p => p.asin === asin);
-                            const productInfo = product || { asin, name: asin, image: '' };
-                            
-                            // Cache the mock data
+                        // Fetch product info asynchronously for both manual ASINs and selected alternates
+                        this.fetchProductInfoFromASIN(asin).then(productInfo => {
+                            // Cache the result
                             this.productInfoCache.set(asin, productInfo);
                             
-                            // Update immediately
+                            // Update the tile with fetched info
                             li.innerHTML = createAsinTileHTML(asin, productInfo, isManual);
-                            window.log(`📦 Used mock data for ${asin}`);
-                        }
+                            window.log(`✅ Updated tile for ${asin} with fetched data (${isManual ? 'manual' : 'selected alternate'})`);
+                        }).catch(error => {
+                            // For selected alternates, try to use mock data as fallback before giving up
+                            if (!isManual) {
+                                const product = mockProducts.find(p => p.asin === asin);
+                                if (product) {
+                                    // Cache the mock data as fallback
+                                    this.productInfoCache.set(asin, product);
+                                    
+                                    // Update with mock data
+                                    li.innerHTML = createAsinTileHTML(asin, product, isManual);
+                                    window.log(`📦 Used mock data fallback for ${asin} after fetch failed`);
+                                    return;
+                                }
+                            }
+                            
+                            // Cache error state as final fallback
+                            const errorInfo = { asin, name: asin, image: '' };
+                            this.productInfoCache.set(asin, errorInfo);
+                            
+                            // Update with error state
+                            li.innerHTML = createAsinTileHTML(asin, errorInfo, isManual);
+                            window.log(`❌ Updated tile for ${asin} with error state (${isManual ? 'manual' : 'selected alternate'})`);
+                        });
                     }
                     
                     // Insert in correct position (manual ASINs first, then selected alternates)
