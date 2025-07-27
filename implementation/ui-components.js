@@ -842,16 +842,16 @@
                     return;
                 }
                 
-                // Show loading state
+                // Show loading state - simplified message without AI references
                 const container = document.getElementById('cqe-suggested-alternates');
                 if (!container) return;
                 
                 container.style.display = 'block';
                 container.innerHTML = `
-                    <div class="cqe-section-header">Generating Search Terms with AI...</div>
+                    <div class="cqe-section-header">Gathering Alternates...</div>
                     <div style="text-align: center; padding: 20px;">
                         <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                        <p style="margin-top: 10px; color: #666;">Using AI to generate optimized search terms...</p>
+                        <p style="margin-top: 10px; color: #666;">Finding relevant alternates...</p>
                     </div>
                 `;
                 
@@ -872,15 +872,16 @@
                         const agentResult = await window.generateSearchTermWithAgent(formData);
                         
                         if (agentResult.success && agentResult.searchTerm) {
+                            // Print search term to console for debugging
+                            console.log('🔍 Generated search term:', agentResult.searchTerm);
                             window.log('✅ Agent generated search term successfully:', agentResult.searchTerm);
                             
-                            // Update loading message
+                            // Keep the same simple loading message - no AI references or search term display
                             container.innerHTML = `
-                                <div class="cqe-section-header">Searching Amazon with AI-Generated Terms...</div>
+                                <div class="cqe-section-header">Gathering Alternates...</div>
                                 <div style="text-align: center; padding: 20px;">
                                     <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                                    <p style="margin-top: 10px; color: #666;">Search term: "${agentResult.searchTerm}"</p>
-                                    <p style="color: #666;">Finding products on Amazon...</p>
+                                    <p style="margin-top: 10px; color: #666;">Finding relevant alternates...</p>
                                 </div>
                             `;
                             
@@ -921,10 +922,10 @@
             // Fallback to original search method
             const fallbackToOriginalSearch = (formData, container) => {
                 container.innerHTML = `
-                    <div class="cqe-section-header">Searching for Alternates...</div>
+                    <div class="cqe-section-header">Gathering Alternates...</div>
                     <div style="text-align: center; padding: 20px;">
                         <div style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007185; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                        <p style="margin-top: 10px; color: #666;">Finding relevant alternates based on your requirements...</p>
+                        <p style="margin-top: 10px; color: #666;">Finding relevant alternates...</p>
                     </div>
                 `;
                 
