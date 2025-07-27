@@ -357,6 +357,45 @@
             }
         },
 
+        // Add CSS for actions column minimum width
+        addActionsColumnCSS: function() {
+            if (document.getElementById('cqe-actions-column-css')) return; // Already added
+            
+            const style = document.createElement('style');
+            style.id = 'cqe-actions-column-css';
+            style.textContent = `
+                /* Actions column minimum width to prevent text wrapping */
+                .cqe-actions-column {
+                    min-width: 120px !important;
+                    width: 120px !important;
+                }
+                
+                /* Actions cell minimum width */
+                td:has(.cqe-add-alternates-btn),
+                td .cqe-add-alternates-btn {
+                    min-width: 120px;
+                }
+                
+                /* Fallback for browsers that don't support :has() */
+                .ink_Table_1smr14t0 td:last-child {
+                    min-width: 120px;
+                }
+                
+                /* Ensure button text doesn't wrap */
+                .cqe-add-alternates-btn {
+                    white-space: nowrap;
+                    min-width: 100px;
+                }
+                
+                /* Alternates display in table cells */
+                .cqe-alternates-display {
+                    min-width: 120px;
+                }
+            `;
+            document.head.appendChild(style);
+            window.log('Added actions column CSS for minimum width');
+        },
+
         // Add "Add Alternates" buttons to the product table
         addAlternatesButtonsToTable: function() {
             const productTable = document.querySelector(window.CQE_SELECTORS ? window.CQE_SELECTORS.productTable : '.ink_Table_1smr14t0.ink_Table_1smr14t1');
@@ -566,6 +605,9 @@
                 window.MODAL_SYSTEM.addModalStyles();
                 window.MODAL_SYSTEM.addSpinnerCSS();
             }
+            
+            // Add CSS for actions column minimum width
+            this.addActionsColumnCSS();
             
             // Add buttons to product table
             this.addAlternatesButtonsToTable();
