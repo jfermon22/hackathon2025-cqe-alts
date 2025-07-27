@@ -1083,7 +1083,98 @@
                 updateCounterAndUI();
             };
 
-            // Submit the form with multi-function agent integration
+            // Generate supplier summary with retry logic (3 attempts)
+            const generateSummaryWithRetry = async (formData, payload, productKey, maxRetries = 3) => {
+                let lastError = null;
+                
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                        window.log(`🤖 Calling multi-function agent for supplier summary generation (attempt ${attempt}/${maxRetries})`);
+                        
+                        const summaryResult = await window.generateSupplierSummaryWithAgent(formData);
+                        
+                        if (summaryResult.success && summaryResult.summary) {
+                            window.log(`✅ Supplier summary generated successfully on attempt ${attempt}`);
+                            
+                            // Print the summary received from the API to the console
+                            console.log('API Summary:', summaryResult.summary);
+                            console.log('Full API Response:', summaryResult);
+                            
+                            // Store submission data for later use
+                            window.LAST_SUBMISSION_DATA = {
+                                timestamp: new Date().toISOString(),
+                                payload: payload,
+                                summaryResult: summaryResult,
+                                productKey: productKey,
+                                attempts: attempt
+                            };
+                            
+                            // Log detailed summary to console
+                            console.log('='.repeat(60));
+                            console.log('SUPPLIER SUMMARY GENERATED SUCCESSFULLY');
+                            console.log('='.repeat(60));
+                            console.log(`Attempts required: ${attempt}/${maxRetries}`);
+                            console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
+                            console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
+                            console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
+                            console.log('AI-Generated Supplier Summary:');
+                            console.log('─'.repeat(50));
+                            console.log(summaryResult.summary);
+                            console.log('─'.repeat(50));
+                            console.log('Next steps:');
+                            console.log('- Summary has been generated for suppliers');
+                            console.log('- Product search will find additional matches');
+                            console.log('- Suppliers will receive the AI-optimized context');
+                            console.log('='.repeat(60));
+                            
+                            return; // Success - exit retry loop
+                        } else {
+                            throw new Error('Summary generation failed: ' + (summaryResult.error || 'Unknown error'));
+                        }
+                    } catch (error) {
+                        lastError = error;
+                        window.log(`❌ Supplier summary generation failed on attempt ${attempt}:`, error.message);
+                        
+                        // If not the last attempt, wait before retrying (exponential backoff)
+                        if (attempt < maxRetries) {
+                            const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+                            window.log(`⏳ Waiting ${delay}ms before retry...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                        }
+                    }
+                }
+                
+                // All retries failed
+                window.log(`❌ Supplier summary generation failed after ${maxRetries} attempts:`, lastError?.message);
+                
+                // Store submission data with error
+                window.LAST_SUBMISSION_DATA = {
+                    timestamp: new Date().toISOString(),
+                    payload: payload,
+                    summaryResult: null,
+                    productKey: productKey,
+                    error: lastError?.message,
+                    attempts: maxRetries,
+                    failed: true
+                };
+                
+                // Log final failure to console
+                console.log('='.repeat(60));
+                console.log('SUPPLIER SUMMARY GENERATION FAILED');
+                console.log('='.repeat(60));
+                console.log(`Failed after ${maxRetries} attempts`);
+                console.log(`Final error: ${lastError?.message}`);
+                console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
+                console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
+                console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
+                console.log('Next steps:');
+                console.log('- Form data will be processed manually');
+                console.log('- Product search will find additional matches');
+                console.log('- Suppliers will receive basic context');
+                console.log('='.repeat(60));
+            };
+
+            // Submit the form with immediate modal closure and async summary generation
             const submitForm = async () => {
                 // Prepare submission payload with clear separation
                 const payload = {
@@ -1119,159 +1210,69 @@
                 
                 window.log('Submitting payload to downstream services:', payload);
                 
-                // Show loading state for supplier summary generation
-                const submitBtn = document.getElementById('cqe-submit-btn');
-                const originalText = submitBtn ? submitBtn.textContent : 'Submit';
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.textContent = 'Generating Summary...';
+                // IMMEDIATE ACTIONS (synchronous) - Store data and update table
+                const productKey = window.currentProductData?.id || window.currentProductData?.asin || window.currentProductData?.rowKey;
+                
+                // Store alternates data immediately
+                if (productKey && payload.allAsins.length > 0) {
+                    window.PRODUCT_ALTERNATES_STORAGE[productKey] = {
+                        manualAsins: new Set(payload.manualAsins),
+                        selectedAlternates: new Set(payload.selectedAlternates),
+                        productInfo: {}
+                    };
+                    
+                    // Update the table display with alternates (synchronous)
+                    try {
+                        await this.updateTableWithAlternates(productKey, payload.allAsins);
+                        window.log('✅ Table updated with alternates immediately');
+                    } catch (error) {
+                        window.log('⚠️ Table update failed, but continuing with submission:', error);
+                    }
                 }
                 
-                try {
-                    // Generate supplier summary using multi-function agent
-                    if (window.generateSupplierSummaryWithAgent) {
-                        window.log('🤖 Calling multi-function agent for supplier summary generation');
-                        
-                        const formData = {
-                            originalProduct: window.currentProductData?.name || '',
-                            customerUsageIntent: payload.intent,
-                            itemDescription: payload.itemDescription,
-                            mustHaveAttributes: payload.mustHave,
-                            preferredAttributes: payload.preferred
-                        };
-                        
-                        const summaryResult = await window.generateSupplierSummaryWithAgent(formData);
-                        
-                        if (summaryResult.success && summaryResult.summary) {
-                            window.log('✅ Supplier summary generated successfully');
-                            
-                            // REQUIREMENT 1: Print the summary received from the API to the console
-                            console.log('API Summary:', summaryResult.summary);
-                            console.log('Full API Response:', summaryResult);
-                            
-                            // REQUIREMENT 2: Store alternates data and update table
-                            const productKey = window.currentProductData?.id || window.currentProductData?.asin || window.currentProductData?.rowKey;
-                            if (productKey && payload.allAsins.length > 0) {
-                                // Store the alternates data for this product
-                                window.PRODUCT_ALTERNATES_STORAGE[productKey] = {
-                                    manualAsins: new Set(payload.manualAsins),
-                                    selectedAlternates: new Set(payload.selectedAlternates),
-                                    productInfo: {}
-                                };
-                                
-                                // Update the table display with alternates
-                                await this.updateTableWithAlternates(productKey, payload.allAsins);
-                            }
-                            
-                            // Store submission data for later use
-                            window.LAST_SUBMISSION_DATA = {
-                                timestamp: new Date().toISOString(),
-                                payload: payload,
-                                summaryResult: summaryResult,
-                                productKey: productKey
-                            };
-                            
-                            // Log detailed summary to console only
-                            console.log('='.repeat(60));
-                            console.log('FORM SUBMISSION SUCCESSFUL');
-                            console.log('='.repeat(60));
-                            console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
-                            console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
-                            console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
-                            console.log('AI-Generated Supplier Summary:');
-                            console.log('─'.repeat(50));
-                            console.log(summaryResult.summary);
-                            console.log('─'.repeat(50));
-                            console.log('Next steps:');
-                            console.log('- Summary has been generated for suppliers');
-                            console.log('- Product search will find additional matches');
-                            console.log('- Suppliers will receive the AI-optimized context');
-                            console.log('='.repeat(60));
-                        } else {
-                            window.log('❌ Supplier summary generation failed, proceeding without AI summary');
-                            
-                            // Store submission data for later use
-                            window.LAST_SUBMISSION_DATA = {
-                                timestamp: new Date().toISOString(),
-                                payload: payload,
-                                summaryResult: null,
-                                productKey: productKey
-                            };
-                            
-                            // Log to console only
-                            console.log('='.repeat(60));
-                            console.log('FORM SUBMISSION SUCCESSFUL (AI Summary Unavailable)');
-                            console.log('='.repeat(60));
-                            console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
-                            console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
-                            console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
-                            console.log('⚠️ AI summary generation temporarily unavailable');
-                            console.log('Next steps:');
-                            console.log('- Form data will be processed manually');
-                            console.log('- Product search will find additional matches');
-                            console.log('- Suppliers will receive basic context');
-                            console.log('='.repeat(60));
-                        }
-                    } else {
-                        window.log('❌ Multi-function agent not available for supplier summary');
-                        
-                        // Store submission data for later use
-                        window.LAST_SUBMISSION_DATA = {
-                            timestamp: new Date().toISOString(),
-                            payload: payload,
-                            summaryResult: null,
-                            productKey: productKey
-                        };
-                        
-                        // Log to console only
-                        console.log('='.repeat(60));
-                        console.log('FORM SUBMISSION SUCCESSFUL (Agent Unavailable)');
-                        console.log('='.repeat(60));
-                        console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
-                        console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
-                        console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
-                        console.log('Next steps:');
-                        console.log('- Form data will be processed');
-                        console.log('- Product search will find additional matches');
-                        console.log('- Suppliers will receive context');
-                        console.log('='.repeat(60));
-                    }
-                } catch (error) {
-                    window.log('❌ Error in supplier summary generation:', error);
+                // Log immediate submission success
+                console.log('='.repeat(60));
+                console.log('FORM SUBMISSION SUCCESSFUL - MODAL CLOSING');
+                console.log('='.repeat(60));
+                console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
+                console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
+                console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
+                console.log('Status: Data stored, table updated, summary generation starting in background...');
+                console.log('='.repeat(60));
+                
+                // CLOSE MODAL IMMEDIATELY - Don't wait for summary generation
+                if (window.MODAL_SYSTEM) {
+                    window.MODAL_SYSTEM.closeModal();
+                }
+                
+                // BACKGROUND ACTIONS (asynchronous) - Generate summary with retry logic
+                // This runs independently after modal closure
+                if (window.generateSupplierSummaryWithAgent) {
+                    const formData = {
+                        originalProduct: window.currentProductData?.name || '',
+                        customerUsageIntent: payload.intent,
+                        itemDescription: payload.itemDescription,
+                        mustHaveAttributes: payload.mustHave,
+                        preferredAttributes: payload.preferred
+                    };
                     
-                    // Store submission data for later use
+                    // Start summary generation in background (no await - fire and forget)
+                    generateSummaryWithRetry(formData, payload, productKey).catch(error => {
+                        window.log('❌ Background summary generation encountered an error:', error);
+                    });
+                } else {
+                    window.log('❌ Multi-function agent not available for supplier summary');
+                    
+                    // Store submission data without summary
                     window.LAST_SUBMISSION_DATA = {
                         timestamp: new Date().toISOString(),
                         payload: payload,
                         summaryResult: null,
                         productKey: productKey,
-                        error: error.message
+                        error: 'Agent not available'
                     };
                     
-                    // Log error to console only
-                    console.log('='.repeat(60));
-                    console.log('FORM SUBMISSION WITH WARNINGS');
-                    console.log('='.repeat(60));
-                    console.log(`Manual ASINs (${payload.manualAsins.length}):`, payload.manualAsins);
-                    console.log(`Selected Alternates (${payload.selectedAlternates.length}):`, payload.selectedAlternates);
-                    console.log(`Total ASINs: ${payload.allAsins.length}/${MAX_ALTERNATES}`);
-                    console.log(`⚠️ AI processing error: ${error.message}`);
-                    console.log('Next steps:');
-                    console.log('- Form data will be processed manually');
-                    console.log('- Product search will find additional matches');
-                    console.log('- Suppliers will receive basic context');
-                    console.log('='.repeat(60));
-                } finally {
-                    // Restore button state
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
-                    }
-                }
-                
-                // Close modal after successful submission
-                if (window.MODAL_SYSTEM) {
-                    window.MODAL_SYSTEM.closeModal();
+                    console.log('⚠️ Summary generation skipped - agent not available');
                 }
             };
 
